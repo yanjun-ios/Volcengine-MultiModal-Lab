@@ -1,0 +1,1316 @@
+import streamlit as st
+from generation_image_sdk import t2i_30, i2i_30_portrait, i2i_seed_edit_30, t2v_seedance, i2v_seedance, i2i_30_single_ip, ark_t2i, ark_i2i, t2i_jimeng, i2i_jimeng_v30, t2v_jimeng_s20_pro, i2v_jimeng_s20_pro
+from volcengine.visual.VisualService import VisualService
+from volcenginesdkarkruntime import Ark
+from llm_prompt_optmize import optimize_stream
+import base64
+import os
+
+st.set_page_config(page_title="Image Generation", page_icon="🎨", layout="wide")
+
+@st.cache_resource
+def get_visual_service():
+    # It's recommended to use environment variables for AK and SK
+    ak = os.environ.get("VOLC_ACCESSKEY", "")
+    sk = os.environ.get("VOLC_SECRETKEY", "")
+    visual_service = VisualService()
+    visual_service.set_ak(ak)
+    visual_service.set_sk(sk)
+    return visual_service
+
+@st.cache_resource
+def get_ark_client():
+    api_key = os.environ.get("API_KEY", "dcc187e6-0550-4759-a3e5-63b9b57ec387")
+    return Ark(api_key=api_key)
+
+# 初始化服务实例到 session_state
+if 'visual_service' not in st.session_state:
+    st.session_state.visual_service = get_visual_service()
+if 'ark_client' not in st.session_state:
+    st.session_state.ark_client = get_ark_client()
+
+# 从 session_state 获取服务实例
+visual_service = st.session_state.visual_service
+ark_client = st.session_state.ark_client
+
+st.title("火山引擎-图片及视频生成v3.0")
+
+# 自定义CSS样式 - 简约现代化左侧菜单
+st.markdown("""
+<style>
+/* 侧边栏整体样式 */
+.css-1d391kg {
+    background-color: #f8f9fa;
+    padding-top: 1rem;
+}
+
+/* 隐藏默认按钮样式 */
+.stButton > button {
+    background: transparent !important;
+    border: none !important;
+    padding: 8px 16px !important;
+    color: #495057 !important;
+    text-decoration: none !important;
+    height: auto !important;
+    width: 100% !important;
+    text-align: left !important;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+    border-radius: 6px !important;
+    margin: 2px 0 !important;
+    transition: all 0.2s ease !important;
+    box-shadow: none !important;
+}
+
+.stButton > button:hover {
+    background-color: #e9ecef !important;
+    color: #212529 !important;
+}
+
+.stButton > button:focus {
+    background-color: #e9ecef !important;
+    color: #212529 !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stSidebarContent"] div[data-testid="stMarkdownContainer"] {
+    width: 100%;
+    text-align: left;
+}
+
+/* 菜单分组样式 */
+.menu-group {
+    margin: 20px 0 10px 0;
+    padding: 0 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 分割线样式 */
+.menu-divider {
+    height: 1px;
+    background-color: #dee2e6;
+    margin: 12px 16px;
+    border: none;
+}
+
+/* 侧边栏标题 */
+.sidebar-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #212529;
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 0 16px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 使用侧边栏菜单选择功能模块
+st.sidebar.markdown('<div class="sidebar-title">功能菜单</div>', unsafe_allow_html=True)
+
+# 初始化选中状态
+if 'selected_function' not in st.session_state:
+    st.session_state.selected_function = "通用3.0-文生图"
+
+# 菜单选项
+menu_options = [
+    "通用3.0-文生图",
+    "图生图3.0-人像写真", 
+    "图生图3.0-指令编辑",
+    "图生图3.0-角色特征保持",
+    "方舟-文生图3.0",
+    "方舟-图像编辑3.0",
+    "既梦AI-图像生成",
+    "既梦AI-图生图3.0",
+    "文生视频",
+    "图生视频",
+    "既梦AI-文生视频",
+    "既梦AI-图生视频",
+    "TTS",
+    "音乐生成",
+    "数字人"
+]
+
+# 添加分组标题
+st.sidebar.markdown('<div class="menu-group">图片生成</div>', unsafe_allow_html=True)
+
+# 图片生成菜单
+for i in range(8):
+    if st.sidebar.button(menu_options[i], key=f"menu_{i}"):
+        st.session_state.selected_function = menu_options[i]
+        st.rerun()
+
+# 分割线
+st.sidebar.markdown('<hr class="menu-divider">', unsafe_allow_html=True)
+# 视频生成分组
+st.sidebar.markdown('<div class="menu-group">视频生成</div>', unsafe_allow_html=True)
+
+# 视频生成菜单
+for i in range(8, 12):
+    if st.sidebar.button(menu_options[i], key=f"menu_{i}"):
+        st.session_state.selected_function = menu_options[i]
+        st.rerun()
+# 分割线
+st.sidebar.markdown('<hr class="menu-divider">', unsafe_allow_html=True)
+# 其他生成分组
+st.sidebar.markdown('<div class="menu-group">其他</div>', unsafe_allow_html=True)
+# 其他生成菜单
+for i in range(12, 15):
+    if st.sidebar.button(menu_options[i], key=f"menu_{i}"):
+        st.session_state.selected_function = menu_options[i]
+        st.rerun()
+# 分割线
+st.sidebar.markdown('<hr class="menu-divider">', unsafe_allow_html=True)
+
+# 设置按钮
+st.sidebar.markdown('<div class="menu-group">系统设置</div>', unsafe_allow_html=True)
+if st.sidebar.button("⚙️ 设置", key="settings_button"):
+    st.session_state.selected_function = "设置"
+    st.rerun()
+
+selected_function = st.session_state.selected_function
+
+if selected_function == "通用3.0-文生图":
+    st.header("通用3.0-文生图")
+    st.markdown("提示词秘籍:https://bytedance.larkoffice.com/docx/DUAJdq59Zo9GQAx4KZ4c2DP9noc?from=from_copylink")
+    st.markdown("接口文档:https://www.volcengine.com/docs/85128/1526761")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("输入参数")
+        prompt_t2i = st.text_area("输入文生图提示词:", "千军万马", height=100, key="prompt_t2i")
+        seed_t2i = st.number_input("Seed", value=-1, key="seed_t2i")
+        scale_t2i = st.slider("Scale", min_value=0.0, max_value=10.0, value=2.5, step=0.1, key="scale_t2i")
+        width_t2i = st.number_input("Width", value=1328, key="width_t2i")
+        height_t2i = st.number_input("Height", value=1328, key="height_t2i")
+        return_url_t2i = st.checkbox("Return URL", value=True, key="return_url_t2i")
+        generate_button_t2i = st.button("生成图片", key="button_t2i")
+
+    with col2:
+        st.subheader("生成结果")
+        if generate_button_t2i:
+            with st.spinner("Generating..."):
+                image_url = t2i_30(visual_service, prompt_t2i, seed_t2i, scale_t2i, width_t2i, height_t2i, return_url_t2i)
+                if image_url:
+                    st.image(image_url, caption="Generated Image")
+
+elif selected_function == "图生图3.0-人像写真":
+    st.header("图生图3.0-人像写真")
+    st.markdown("接口文档:https://www.volcengine.com/docs/85128/1602212")
+    style_presets = {
+        "美漫": "美式漫画风格，2D，平面插画，漫画，有力的线条，复古色彩",
+        "赛博朋克": "赛博朋克风格写实照片，人物穿着机甲风格的夹克外套，背景是赛博朋克风格的霓虹城市",
+        "异域风情": "异域沙漠服饰装扮，异域的头饰，背景是异域的沙漠绿洲和建筑，发丝细腻刻画，高清特写，极致细节，光影交错，气质，oc渲染，朦胧，肌理感，3D CG渲染，3d动漫厚涂，发丝细腻刻画富有光泽，光影交错，光影对比强烈，光影斑斓，3d动漫风格",
+        "模糊自拍-路飞cos": "一张极其平凡无奇的iphone自拍照，没有明确的主体或构图感，画面有些拿不稳的动态模糊，正在角色扮演的路飞coser，带着草帽",
+        "未来感美漫": "3D美漫角色正面半身照，80年代复古美漫，波普，厚涂，穿着运动感的数字时装廓形外套，单色随机荧光亮色配色，蒸汽波和赛博朋克的结合，超现实，高细节，超精细数字插画，电影照明，ArtStation 质量，带深度的黑色渐变背景，",
+        "高级感写真": "极致光影的室内摄影，大师构图，反差感，黑色背景，极简，解构，远景，索尼胶片，电影感，人像摄影，艺术摄影，荒木经椎，弥散光学，明暗对比，优雅动态角度，高级感，高清修复，脸部特写，头部特写，肖像，正面，极致侧面特写，正脸，眼神暗示，流动光影，一缕光照在脸上，迷幻主义，细节生动，杰作，艺术氛围感，",
+        "赛场上": "高精度建模渲染，脸被淡淡的渐变粉灰色光照亮，梦幻，真实的皮肤纹理，细节丰富的发丝，布满水珠的皮肤，氛围感，2K，大师级光影，层次感，立体感，极致的光线，发丝细腻，王家卫电影胶片颗粒质感 ，柔焦，高斯模糊，明暗交错，虚实结合的构图张力，双色温闪光灯布光，背景光斑虚化处理，动态范围，彩色光斑，穿着10号球衣",
+    }
+    styles = list(style_presets.keys())
+
+    # Callback to update prompt in session state
+    def update_prompt_from_style():
+        st.session_state.prompt_i2i = style_presets[st.session_state.style_selector]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("输入参数")
+        image_url_i2i = st.text_input("Enter an image URL for image-to-image generation:", "https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_bada876d0cb71c5598a6e0885f14c83c.png", key="image_url_i2i")
+        
+        # Set default prompt if not in state
+        if 'prompt_i2i' not in st.session_state:
+            st.session_state.prompt_i2i = style_presets[styles[0]]
+
+        selected_style = st.selectbox(
+            "选择风格类型",
+            options=styles,
+            key="style_selector",
+            on_change=update_prompt_from_style
+        )
+        
+        # The text area uses the session state.
+        prompt_i2i = st.text_area("输入人像写真提示词:", key="prompt_i2i", height=100)
+        
+        seed_i2i = st.number_input("Seed", value=-1, key="seed_i2i")
+        width_i2i = st.number_input("Width", value=1024, key="width_i2i")
+        height_i2i = st.number_input("Height", value=1024, key="height_i2i")
+        gen_mode_i2i = st.selectbox("Generation Mode", ["creative","reference","reference_char"], key="gen_mode_i2i")
+        generate_button_i2i = st.button("生成图片", key="button_i2i")
+
+    with col2:
+        st.subheader("图片预览和生成结果")
+        preview_col, result_col = st.columns(2)
+        with preview_col:
+            if image_url_i2i:
+                st.image(image_url_i2i, caption="图片预览")
+        
+        with result_col:
+            if generate_button_i2i:
+                with st.spinner("Generating..."):
+                    # The value from the text_input is in prompt_i2i
+                    img_url = i2i_30_portrait(visual_service, image_url_i2i, prompt_i2i, seed_i2i, width_i2i, height_i2i, gen_mode_i2i)
+                    if img_url:
+                        st.image(img_url, caption="Generated Image")
+
+elif selected_function == "图生图3.0-指令编辑":
+    st.header("图生图3.0-指令编辑")
+    st.markdown("接口文档:https://www.volcengine.com/docs/85128/1602254")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("输入参数")
+        input_method = st.radio("选择图片来源", ("URL", "上传图片"), key="input_method_edit")
+        image_url_edit = None
+        uploaded_file = None
+
+        if input_method == "URL":
+            image_url_edit = st.text_input("输入图片 URL:", "https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_b9d0ea6bb4528cce79517a7c706ad1b7.png", key="image_url_edit")
+        else:
+            uploaded_file = st.file_uploader("上传图片", type=["png", "jpg", "jpeg"], key="file_uploader_edit")
+
+        prompt_edit = st.text_area("输入编辑指令:", "将小女孩的衣服换成白色的公主裙", height=100, key="prompt_edit")
+        seed_edit = st.number_input("Seed", value=-1, key="seed_edit")
+        scale_edit = st.slider("Scale", min_value=0.0, max_value=1.0, value=0.5, step=0.1, key="scale_edit")
+        generate_button_edit = st.button("开始编辑", key="button_edit")
+
+    with col2:
+        st.subheader("图片预览和编辑结果")
+        preview_col, result_col = st.columns(2)
+
+        with preview_col:
+            preview_image = None
+            if input_method == "URL" and image_url_edit:
+                preview_image = image_url_edit
+            elif input_method == "上传图片" and uploaded_file is not None:
+                preview_image = uploaded_file
+            
+            if preview_image is not None:
+                st.image(preview_image, caption="图片预览")
+
+        with result_col:
+            if generate_button_edit:
+                with st.spinner("正在编辑中..."):
+                    img_url = None
+                    if input_method == "URL":
+                        if image_url_edit:
+                            img_url = i2i_seed_edit_30(visual_service, prompt=prompt_edit, seed=seed_edit, scale=scale_edit, image_url=image_url_edit)
+                    elif input_method == "上传图片":
+                        if uploaded_file is not None:
+                            image_base64 = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+                            img_url = i2i_seed_edit_30(visual_service, prompt=prompt_edit, seed=seed_edit, scale=scale_edit, image_base64=image_base64)
+                    
+                    if img_url:
+                        st.image(img_url, caption="编辑后图片")
+
+elif selected_function == "图生图3.0-角色特征保持":
+    st.header("图生图3.0-角色特征保持 DreamO")
+    st.markdown("接口文档:https://www.volcengine.com/docs/85128/1722713")
+    st.markdown("💡 DreamO模型可以保持角色特征，生成不同场景下的同一角色图片")
+    
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("输入参数")
+        input_method_dreamo = st.radio("选择图片来源", ("URL", "上传图片"), key="input_method_dreamo")
+        image_url_dreamo = None
+        uploaded_file_dreamo = None
+
+        if input_method_dreamo == "URL":
+            image_url_dreamo = st.text_input(
+                "输入角色图片 URL:", 
+                "https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_bada876d0cb71c5598a6e0885f14c83c.png", 
+                key="image_url_dreamo"
+            )
+        else:
+            uploaded_file_dreamo = st.file_uploader(
+                "上传角色图片", 
+                type=["png", "jpg", "jpeg"], 
+                key="file_uploader_dreamo"
+            )
+
+        prompt_dreamo = st.text_area(
+            "输入生成提示词:", 
+            "衣服换成西装，带上暗灰色的墨镜，头发变成板栗色",
+            height=100,
+            key="prompt_dreamo"
+        )
+        
+        seed_dreamo = st.number_input("Seed", value=-1, key="seed_dreamo")
+        width_dreamo = st.number_input("Width", value=1024, key="width_dreamo")
+        height_dreamo = st.number_input("Height", value=1024, key="height_dreamo")
+        use_rephraser_dreamo = st.checkbox("使用提示词优化", value=True, key="use_rephraser_dreamo")
+        
+        generate_button_dreamo = st.button("生成角色图片", key="button_dreamo")
+
+    with col2:
+        st.subheader("图片预览和生成结果")
+        preview_col, result_col = st.columns(2)
+
+        with preview_col:
+            st.write("**角色图片预览**")
+            preview_image_dreamo = None
+            if input_method_dreamo == "URL" and image_url_dreamo:
+                preview_image_dreamo = image_url_dreamo
+            elif input_method_dreamo == "上传图片" and uploaded_file_dreamo is not None:
+                preview_image_dreamo = uploaded_file_dreamo
+            
+            if preview_image_dreamo is not None:
+                st.image(preview_image_dreamo, caption="角色参考图片")
+            else:
+                st.info("请上传或输入角色图片")
+
+        with result_col:
+            st.write("**生成结果**")
+            if generate_button_dreamo:
+                if (input_method_dreamo == "URL" and not image_url_dreamo) or \
+                   (input_method_dreamo == "上传图片" and uploaded_file_dreamo is None):
+                    st.error("请先上传角色图片或输入图片URL！")
+                else:
+                    with st.spinner("正在生成角色特征保持图片..."):
+                        try:
+                            img_url = None
+                            if input_method_dreamo == "URL":
+                                img_url = i2i_30_single_ip(
+                                    visual_service, 
+                                    prompt=prompt_dreamo, 
+                                    seed=seed_dreamo, 
+                                    width=width_dreamo,
+                                    height=height_dreamo,
+                                    image_url=image_url_dreamo,
+                                    use_rephraser=use_rephraser_dreamo
+                                )
+                            elif input_method_dreamo == "上传图片":
+                                image_base64_dreamo = base64.b64encode(uploaded_file_dreamo.getvalue()).decode('utf-8')
+                                img_url = i2i_30_single_ip(
+                                    visual_service, 
+                                    prompt=prompt_dreamo, 
+                                    seed=seed_dreamo, 
+                                    width=width_dreamo,
+                                    height=height_dreamo,
+                                    image_base64=image_base64_dreamo,
+                                    use_rephraser=use_rephraser_dreamo
+                                )
+                            
+                            if img_url:
+                                st.image(img_url, caption="角色特征保持生成图片")
+                                st.success("角色特征保持图片生成成功！")
+                            else:
+                                st.error("图片生成失败，请检查参数或稍后重试")
+                                
+                        except Exception as e:
+                            st.error(f"生成图片时出错: {str(e)}")
+
+elif selected_function == "方舟-文生图3.0":
+    st.header("方舟-文生图3.0")
+    st.markdown("接口文档: https://www.volcengine.com/docs/82379/1541523")
+    st.markdown("💡 使用方舟API进行文生图，支持多种尺寸和参数调节")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 模型选择
+        model_ark_t2i = st.text_input(
+            "输入模型名称",
+            value="doubao-seedream-3-0-t2i-250415",
+            key="model_ark_t2i"
+        )
+        
+        # 提示词输入
+        prompt_ark_t2i = st.text_area(
+            "输入文生图提示词:",
+            "一只可爱的小猫在花园里玩耍，阳光明媚，高清摄影",
+            height=100,
+            key="prompt_ark_t2i"
+        )
+        
+        # 图片尺寸
+        size_ark_t2i = st.selectbox(
+            "图片尺寸",
+            ["1024x1024", "1024x1536", "1536x1024", "1024x768", "768x1024", "1536x1536"],
+            key="size_ark_t2i"
+        )
+        
+        # 其他参数
+        seed_ark_t2i = st.number_input("Seed", value=-1, key="seed_ark_t2i")
+        guidance_scale_ark_t2i = st.slider("Guidance Scale", min_value=1.0, max_value=10.0, value=2.5, step=0.1, key="guidance_scale_ark_t2i")
+        watermark_ark_t2i = st.checkbox("添加水印", value=True, key="watermark_ark_t2i")
+        
+        generate_button_ark_t2i = st.button("生成图片", key="button_ark_t2i")
+    
+    with col2:
+        st.subheader("生成结果")
+        
+        if generate_button_ark_t2i:
+            with st.spinner("正在生成图片..."):
+                try:
+                    image_url = ark_t2i(
+                        ark_client,
+                        model=model_ark_t2i,
+                        prompt=prompt_ark_t2i,
+                        size=size_ark_t2i,
+                        seed=seed_ark_t2i,
+                        guidance_scale=guidance_scale_ark_t2i,
+                        watermark=watermark_ark_t2i
+                    )
+                    
+                    if image_url:
+                        st.image(image_url, caption="方舟生成图片")
+                        st.success("图片生成成功！")
+                    else:
+                        st.error("图片生成失败，请检查参数或稍后重试")
+                        
+                except Exception as e:
+                    st.error(f"生成图片时出错: {str(e)}")
+
+elif selected_function == "既梦AI-图像生成":
+    st.header("既梦AI 图像生成")
+    st.markdown("""
+    产品优势
+**文字生成能力**：支持生成准确的中文汉字和英文字母; 
+**构图**：整体在景别、视角方面变化多样性提升明显，画面层次感增强;
+**光影：去除了刻意的光线表达，画面表现更加真实自然; 
+**色彩**：画面色调统一性增强，去除了大部分高对比混乱杂色; 
+**质感**：人物皮肤磨皮感及油腻感减弱，人像、动物及材质类类纹理质感表现更加真实细腻; 
+**细节丰富度**：简化了过于繁琐的画面元素，画面整体表现现更加具有层次感、秩序感; 
+    """)
+    st.markdown("接口文档: https://www.volcengine.com/docs/85128/125990")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("输入参数")
+        style_presets = {
+            "文字海报":"制作一张vlog视频封面。马卡龙配色，美女旅游照片+色块的拼贴画风格，主文案是“威海旅游vlog”，副文案是“特种兵一日游 被低估的旅游城市”，海报主体是一个穿着短裙、梳双马尾的少女，人物白色描边",
+            "浪漫水彩":"工笔画风格，三维古风，东方禅意，航拍高角度视角，捕捉了海底极小人物的奔跑追逐；构图大面积留白和丰富的光影，背景以水墨晕染展现水中阳光的多彩折射，现实与虚拟相结合的思考，水墨风格，蓝绿色调，逆光和辉光效果增强冷暖对比，高角度拍摄景深感，整体画面高清，画质通透，发光呈现幽静空灵感",
+            "胶片梦核": "过曝，强对比，夜晚，雪地里，巨大的黄色浴缸，小狗泡澡带墨镜，在喝红酒，胶片摄影，毛刺质感，复古滤镜，夜晚，过度曝光，古早，70年代摄影，复古老照片，闪光灯拍摄，闪光灯效果，过曝，过度曝光，闪光灯过曝，极简，高饱和复古色，70s vintage photography, vintage, retro style"
+        }
+        
+        # 添加自定义选项到开头
+        style_presets = {"自定义": "一只可爱的猫", **style_presets}
+        
+        # 初始化session state用于存储提示词
+        if 'prompt_t2i_jimeng' not in st.session_state:
+            st.session_state.prompt_t2i_jimeng = style_presets["自定义"]
+
+        # 风格选择回调函数
+        def update_jimeng_prompt():
+            selected_style = st.session_state.jimeng_style_selector
+            if selected_style in style_presets:
+                st.session_state.prompt_t2i_jimeng = style_presets[selected_style]
+
+        # 风格选择下拉框
+        selected_jimeng_style = st.selectbox(
+            "选择风格类型",
+            options=list(style_presets.keys()),
+            key="jimeng_style_selector",
+            on_change=update_jimeng_prompt
+        )
+        
+        # 提示词输入框，使用session state中的值
+        prompt_t2i_jimeng = st.text_area("输入文生图提示词:", key="prompt_t2i_jimeng", height=100)
+        seed_t2i_jimeng = st.number_input("Seed", value=-1, key="seed_t2i_jimeng")
+        width_t2i_jimeng = st.number_input("Width", value=512, key="width_t2i_jimeng")
+        height_t2i_jimeng = st.number_input("Height", value=512, key="height_t2i_jimeng")
+        use_pre_llm_jimeng = st.checkbox("Use Pre-LLM (开启文本扩写，会针对输入prompt进行扩写优化)", value=True, key="use_pre_llm_jimeng")
+        use_sr_jimeng = st.checkbox("Use SR (文生图+AIGC超分)", value=True, key="use_sr_jimeng")
+        return_url_t2i_jimeng = st.checkbox("Return URL", value=True, key="return_url_t2i_jimeng")
+        generate_button_t2i_jimeng = st.button("生成图片", key="button_t2i_jimeng")
+
+    with col2:
+        st.subheader("生成结果")
+        if generate_button_t2i_jimeng:
+            with st.spinner("Generating..."):
+                image_url = t2i_jimeng(visual_service, prompt_t2i_jimeng, seed_t2i_jimeng, width_t2i_jimeng, height_t2i_jimeng, return_url_t2i_jimeng, use_pre_llm_jimeng, use_sr_jimeng)
+                if image_url:
+                    st.image(image_url, caption="Generated Image")
+
+elif selected_function == "既梦AI-图生图3.0":
+    st.header("既梦AI-图生图 3.0")
+    st.markdown("""
+产品优势
+**细节保留精准**：可在保持主体元素和图像风格等不变的基础上对图像进行指令编辑，支持增减元素、调整光影、更换背景或修改文字等; 
+**指令遵循能力强**： 智能解析复杂编辑指令，对用户意图理解准确。无论是局部细节调整还是全局性修改，均能实现精准响应和高效执行; 
+**专业级海报设计**：营销海报场景下的生产力利器，支持生成覆盖广泛行业需求的海报素材，在排版美感与文字设计感方面表现突出; 
+    """)
+    st.markdown("接口文档: https://www.volcengine.com/docs/85128/1602254")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("输入参数")
+        input_method_jimeng_i2i = st.radio("选择图片来源", ("URL", "上传图片", "示例模板"), key="input_method_jimeng_i2i")
+        image_url_jimeng_i2i = None
+        uploaded_file_jimeng_i2i = None
+        style_presets = {
+            "元素消除": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_6dc837655edb35b90071547bc0b96e9e.png","prompt":"消除图片中的路人"},
+            "元素更改": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_d586db140ae55431890252e42b567e83.jpeg","prompt":"将图片里的主体变成苹果,保留质感,光影,材质不变"},
+            "光影变化": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_d2eb521d2805b644ee16ce032a85025d.png","prompt":"保持画面不变，在图片左上角打一束自然的光"},
+            "风格转换": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_513b1d605d03f8c080bad2ad61eda88d.png","prompt":"保持背景结构，保持人物特征，风格改成中国水墨画，泼墨细节，工笔，简单的背景"},
+            "文字修改": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_a154cafca83c25ca0e8e4dced3c2097b.jpeg","prompt":"字改成图中“初夏”文字改为“夏至”，“CHU XIA”改为“Summer Solstice”"},
+            "设计补全": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_203c395adef4e44b6e5812f6f54b7e9e.png","prompt":'这是一张盛夏潮玩市集宣传海报，主标题使用大字中文"盛夏潮玩市集"与英文"SUMMER MARKET"组合呈现'},
+            "商品图背景替换": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_30e36934801512b6416b61590271a24e.png","prompt":"根据图中物品的属性替换背景为其适合的背景场景"},
+            "电商促销海报制作": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_1d400b9e85962e4891b8015f5be5ca9b.png","prompt":'电商促销海报设计，一张清新可爱的毛绒玩具海报。正中央放超呆萌的 “蒜鸟” 黄毛绒玩偶：身子圆滚滚的，眼睛像小黑豆，嘴巴和小脚是嫩黄色，头顶顶着一撮绿油油的蒜苗造型帽子！背景采用浅蓝色渐变底色，点缀着不规则散落的白色与绿色小方块增加灵动感；画面上方用黑色粗体字呈现 "蒜鸟，都不涌易" 的趣味 slogan，中部以黄色字体标注 "好东西代表：蒜鸟玩偶" 及 "# 适用人群：脆皮省电人" 等标签化信息，整体营造出符合年轻人审美的可爱清新视觉效果。背景是天空蓝色渐变，清爽，整体很有夏日风格 。'},
+            "商品图包装": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_0f37291d4e326a104fe1ff35c074f80b.png","prompt":'海报上方用橙色粗体字写着"居家幸福感拉满！"，文字带有白色描边，下方添加同色系衬底，十分醒目。产品图中的粉色拖鞋周围点缀着星星和小兔子的装饰元素，与拖鞋上的兔子图案相呼应，同时为拖鞋添加白色粗描边，使其更突出。三条文案分别为"踩屎感谁懂！""懒人必备神器""少女心爆棚啦"，均用白色字体，搭配黑色描边，分布在产品图的合适位置。背景是模糊虚化的木质地板场景，色调与商品的粉色、旁边的米色杯子相协调，营造出温馨舒适的居家氛围。整体风格突出产品的柔软舒适与可爱特性，吸引消费者目光。'},
+            "拍立得风格": {"url":"https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_78bf49fc071461941cd401d4f6eddca9.png","prompt":"将照片变为这个风格：类似拍立得相纸白色边框，暗朦，隐约的淡彩褪色，非对称，个性视角表达，对焦主体，随意瞬间抓拍模糊场景，y2k，光朦，过曝，复古，低饱和，质感，模糊晕染，强透视，高噪点，胶片颗粒质感，现场感，情绪写意，大片美学，前卫艺术美学，细节丰富，高级感，杰作"},
+        }
+
+        # 初始化session state用于存储模板选择的值
+        first_template_key = list(style_presets.keys())[0]
+        if 'jimeng_i2i_template_url' not in st.session_state:
+            st.session_state.jimeng_i2i_template_url = style_presets[first_template_key]["url"]
+        if 'jimeng_i2i_template_prompt' not in st.session_state:
+            st.session_state.jimeng_i2i_template_prompt = style_presets[first_template_key]["prompt"]
+
+        # 根据选择的输入方式显示不同的输入控件
+        if input_method_jimeng_i2i == "URL":
+            image_url_jimeng_i2i = st.text_input("输入图片 URL:", "https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_b9d0ea6bb4528cce79517a7c706ad1b7.png", key="image_url_jimeng_i2i")
+        elif input_method_jimeng_i2i == "上传图片":
+            uploaded_file_jimeng_i2i = st.file_uploader("上传图片", type=["png", "jpg", "jpeg"], key="file_uploader_jimeng_i2i")
+        elif input_method_jimeng_i2i == "示例模板":
+            # 模板选择回调函数
+            def update_template_values():
+                selected_style = st.session_state.style_template_selector
+                if selected_style in style_presets:
+                    st.session_state.jimeng_i2i_template_url = style_presets[selected_style]["url"]
+                    st.session_state.jimeng_i2i_template_prompt = style_presets[selected_style]["prompt"]
+            
+            # 风格模板选择器
+            selected_template = st.selectbox(
+                "选择示例模板",
+                options=list(style_presets.keys()),
+                key="style_template_selector",
+                on_change=update_template_values
+            )
+            
+            # 显示选中模板的URL（只读）
+            st.text_input(
+                "模板图片 URL:", 
+                value=st.session_state.jimeng_i2i_template_url or style_presets[selected_template]["url"],
+                disabled=True,
+                key="template_url_display"
+            )
+            
+            # 设置image_url_jimeng_i2i为模板URL
+            image_url_jimeng_i2i = st.session_state.jimeng_i2i_template_url or style_presets[selected_template]["url"]
+
+        # 提示词输入框，根据是否选择模板显示不同的默认值
+        if input_method_jimeng_i2i == "示例模板":
+            prompt_default = st.session_state.jimeng_i2i_template_prompt or style_presets[list(style_presets.keys())[0]]["prompt"]
+        else:
+            prompt_default = "将小女孩的衣服换成白色的公主裙"
+            
+        prompt_jimeng_i2i = st.text_area("输入编辑指令:", prompt_default, height=100, key="prompt_jimeng_i2i")
+        seed_jimeng_i2i = st.number_input("Seed", value=-1, key="seed_jimeng_i2i")
+        width_jimeng_i2i = st.number_input("Width", value=1328, key="width_jimeng_i2i")
+        height_jimeng_i2i = st.number_input("Height", value=1328, key="height_jimeng_i2i")
+        scale_jimeng_i2i = st.slider("Scale", min_value=0.0, max_value=1.0, value=0.5, step=0.1, key="scale_jimeng_i2i")
+        generate_button_jimeng_i2i = st.button("开始编辑", key="button_jimeng_i2i")
+
+    with col2:
+        st.subheader("图片预览和编辑结果")
+        preview_col, result_col = st.columns(2)
+
+        with preview_col:
+            preview_image = None
+            if input_method_jimeng_i2i == "URL" and image_url_jimeng_i2i:
+                preview_image = image_url_jimeng_i2i
+            elif input_method_jimeng_i2i == "上传图片" and uploaded_file_jimeng_i2i is not None:
+                preview_image = uploaded_file_jimeng_i2i
+            elif input_method_jimeng_i2i == '示例模板':
+                preview_image = st.session_state.jimeng_i2i_template_url
+
+            
+            if preview_image is not None:
+                st.image(preview_image, caption="图片预览")
+
+        with result_col:
+            if generate_button_jimeng_i2i:
+                with st.spinner("正在编辑中..."):
+                    img_url = None
+                    image_base64 = None
+                    if input_method_jimeng_i2i == "上传图片" and uploaded_file_jimeng_i2i is not None:
+                        image_base64 = base64.b64encode(uploaded_file_jimeng_i2i.getvalue()).decode('utf-8')
+                    
+                    img_url = i2i_jimeng_v30(
+                        visual_service, 
+                        prompt=prompt_jimeng_i2i, 
+                        seed=seed_jimeng_i2i, 
+                        width=width_jimeng_i2i,
+                        height=height_jimeng_i2i,
+                        scale=scale_jimeng_i2i, 
+                        image_url=image_url_jimeng_i2i, 
+                        image_base64=image_base64
+                    )
+                    
+                    if img_url:
+                        st.image(img_url, caption="编辑后图片")
+
+elif selected_function == "既梦AI-文生视频":
+    st.header("既梦AI 文生视频")
+    st.markdown("""
+产品优势
+**高语义遵循**：具有极高的“提示词遵循能力”，支持输入很复杂的提示词（例如镜头切换、人物连续动作、情绪演绎、运镜控制）
+**动效流畅**：动作效果流畅自然，整体视频效果结构稳定
+**画面一致性**：支持保持风格及主体一致性
+    """)
+    st.markdown("接口文档: https://www.volcengine.com/docs/85621/1538636")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("输入参数")
+        prompt_t2v_jimeng = st.text_area("输入文生视频提示词:", "衣服爆发出一团白色泡沫状的物体，仿佛瞬间膨胀或炸裂开来；衣服被气球完全包裹，气球的颜色以橙色、白色和银色为主，层层叠叠地围绕身体。越来越多不断生长；衣服逐渐化作一团不断扩展的巨大银色丝球，闪烁着光泽，呈现出无尽生长的动态；衣服像气球般迅速膨胀，逐渐充满周围的空间，随后开始缓缓泄气；衣服变成很多个银色的气球，飞起来，然后散落在地面", height=100, key="prompt_t2v_jimeng")
+        seed_t2v_jimeng = st.number_input("Seed", value=-1, key="seed_t2v_jimeng")
+        aspect_ratio_t2v_jimeng = st.selectbox("Aspect Ratio", ["16:9", "9:16", "1:1"], key="aspect_ratio_t2v_jimeng")
+        generate_button_t2v_jimeng = st.button("生成视频", key="button_t2v_jimeng")
+
+    with col2:
+        st.subheader("生成结果")
+        if generate_button_t2v_jimeng:
+            with st.spinner("Generating..."):
+                video_url = t2v_jimeng_s20_pro(visual_service, prompt_t2v_jimeng, seed_t2v_jimeng, aspect_ratio_t2v_jimeng)
+                if video_url:
+                    st.video(video_url)
+
+elif selected_function == "既梦AI-图生视频":
+    st.header("既梦AI 图生视频")
+    st.markdown("""
+产品优势
+**高语义遵循**：具有极高的“提示词遵循能力”，支持输入很复杂的提示词（例如镜头切换、人物连续动作、情绪演绎、运镜控制）
+**动效流畅**：动作效果流畅自然，整体视频效果结构稳定
+**画面一致性**：支持保持风格及主体一致性
+    """)
+    st.markdown("接口文档: https://www.volcengine.com/docs/85621/1544774")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("输入参数")
+        input_method_jimeng_i2v = st.radio("选择图片来源", ("URL", "上传图片"), key="input_method_jimeng_i2v")
+        image_url_jimeng_i2v = None
+        uploaded_file_jimeng_i2v = None
+
+        if input_method_jimeng_i2v == "URL":
+            image_url_jimeng_i2v = st.text_input("输入图片 URL:", "https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_b9d0ea6bb4528cce79517a7c706ad1b7.png", key="image_url_jimeng_i2v")
+        else:
+            uploaded_file_jimeng_i2v = st.file_uploader("上传图片", type=["png", "jpg", "jpeg"], key="file_uploader_jimeng_i2v")
+
+        prompt_jimeng_i2v = st.text_area("输入编辑指令:", "第一个镜头-全：女孩慢慢的往前走。第二个镜头-近景：女孩慢慢的弯腰蹲下身；第三个镜头-特写：女孩伸手去抚摸地上的小草", height=100, key="prompt_jimeng_i2v")
+        seed_jimeng_i2v = st.number_input("Seed", value=-1, key="seed_jimeng_i2v")
+        aspect_ratio_jimeng_i2v = st.selectbox("Aspect Ratio", ["16:9", "9:16", "1:1"], key="aspect_ratio_jimeng_i2v")
+        generate_button_jimeng_i2v = st.button("开始生成", key="button_jimeng_i2v")
+
+    with col2:
+        st.subheader("图片预览和生成结果")
+        preview_col, result_col = st.columns(2)
+
+        with preview_col:
+            preview_image = None
+            if input_method_jimeng_i2v == "URL" and image_url_jimeng_i2v:
+                preview_image = image_url_jimeng_i2v
+            elif input_method_jimeng_i2v == "上传图片" and uploaded_file_jimeng_i2v is not None:
+                preview_image = uploaded_file_jimeng_i2v
+            
+            if preview_image is not None:
+                st.image(preview_image, caption="图片预览")
+
+        with result_col:
+            if generate_button_jimeng_i2v:
+                with st.spinner("正在生成中..."):
+                    video_url = None
+                    image_base64 = None
+                    if input_method_jimeng_i2v == "上传图片" and uploaded_file_jimeng_i2v is not None:
+                        image_base64 = base64.b64encode(uploaded_file_jimeng_i2v.getvalue()).decode('utf-8')
+                    
+                    video_url = i2v_jimeng_s20_pro(
+                        visual_service, 
+                        prompt=prompt_jimeng_i2v, 
+                        seed=seed_jimeng_i2v, 
+                        aspect_ratio=aspect_ratio_jimeng_i2v,
+                        image_url=image_url_jimeng_i2v, 
+                        image_base64=image_base64
+                    )
+                    
+                    if video_url:
+                        st.video(video_url)
+
+elif selected_function == "方舟-图像编辑3.0":
+    st.header("方舟-图像编辑3.0")
+    st.markdown("接口文档: https://www.volcengine.com/docs/82379/1666946")
+    st.markdown("💡 使用方舟API进行图像编辑，支持多种编辑指令")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 模型选择
+        model_ark_i2i = st.text_input(
+            "输入模型名称",
+            value="doubao-seededit-3-0-i2i-250628",
+            key="model_ark_i2i"
+        )
+        
+        # 图片输入方式
+        input_method_ark = st.radio("选择图片来源", ("URL", "上传图片"), key="input_method_ark")
+        image_url_ark = None
+        uploaded_file_ark = None
+
+        if input_method_ark == "URL":
+            image_url_ark = st.text_input(
+                "输入图片 URL:", 
+                "https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_b9d0ea6bb4528cce79517a7c706ad1b7.png", 
+                key="image_url_ark"
+            )
+        else:
+            uploaded_file_ark = st.file_uploader(
+                "上传图片", 
+                type=["png", "jpg", "jpeg"], 
+                key="file_uploader_ark"
+            )
+        
+        # 编辑提示词
+        prompt_ark_i2i = st.text_area(
+            "输入编辑指令:",
+            "将衣服颜色改为红色",
+            height=100,
+            key="prompt_ark_i2i"
+        )
+        
+        # 其他参数
+        seed_ark_i2i = st.number_input("Seed", value=-1, key="seed_ark_i2i")
+        guidance_scale_ark_i2i = st.slider("Guidance Scale", min_value=1.0, max_value=10.0, value=5.5, step=0.1, key="guidance_scale_ark_i2i")
+        watermark_ark_i2i = st.checkbox("添加水印", value=True, key="watermark_ark_i2i")
+        
+        generate_button_ark_i2i = st.button("开始编辑", key="button_ark_i2i")
+    
+    with col2:
+        st.subheader("图片预览和编辑结果")
+        preview_col, result_col = st.columns(2)
+        
+        with preview_col:
+            st.write("**原图预览**")
+            preview_image_ark = None
+            if input_method_ark == "URL" and image_url_ark:
+                preview_image_ark = image_url_ark
+            elif input_method_ark == "上传图片" and uploaded_file_ark is not None:
+                preview_image_ark = uploaded_file_ark
+            
+            if preview_image_ark is not None:
+                st.image(preview_image_ark, caption="原图")
+            else:
+                st.info("请上传图片或输入图片URL")
+        
+        with result_col:
+            st.write("**编辑结果**")
+            if generate_button_ark_i2i:
+                if (input_method_ark == "URL" and not image_url_ark) or \
+                   (input_method_ark == "上传图片" and uploaded_file_ark is None):
+                    st.error("请先上传图片或输入图片URL！")
+                else:
+                    with st.spinner("正在编辑图片..."):
+                        try:
+                            # 准备图片数据
+                            image_data = None
+                            if input_method_ark == "URL":
+                                image_data = image_url_ark
+                            elif input_method_ark == "上传图片":
+                                image_base64_ark = base64.b64encode(uploaded_file_ark.getvalue()).decode('utf-8')
+                                # 根据文件类型设置正确的MIME类型
+                                mime_type = f"image/{uploaded_file_ark.type.split('/')[-1]}" if uploaded_file_ark.type else "image/jpeg"
+                                image_data = f"data:{mime_type};base64,{image_base64_ark}"
+                            
+                            image_url = ark_i2i(
+                                ark_client,
+                                model=model_ark_i2i,
+                                prompt=prompt_ark_i2i,
+                                image=image_data,
+                                seed=seed_ark_i2i,
+                                guidance_scale=guidance_scale_ark_i2i,
+                                watermark=watermark_ark_i2i
+                            )
+                            
+                            if image_url:
+                                st.image(image_url, caption="编辑后图片")
+                                st.success("图片编辑成功！")
+                            else:
+                                st.error("图片编辑失败，请检查参数或稍后重试")
+                                
+                        except Exception as e:
+                            st.error(f"编辑图片时出错: {str(e)}")
+
+elif selected_function == "文生视频":
+    st.header("Seedance 1.0 文生视频")
+    st.markdown("接口文档: https://www.volcengine.com/docs/82379/1520757")
+    st.markdown("Seedance-pro 提示词指南: https://bytedance.larkoffice.com/docx/Svl9dMwvCokzZHxamTWcCz5en1f?from=from_copylink")
+    st.markdown("Seedance-lit 提示词指南: https://bytedance.larkoffice.com/docx/UQoSd3NEvoAkghxAl0ccjdplnhR?from=from_copylink")
+
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 模型选择
+        model_t2v = st.selectbox(
+            "选择模型",
+            ["doubao-seedance-1-0-pro-250528", "doubao-seedance-1-0-lite-t2v-250428"],
+            key="model_t2v"
+        )
+        
+        # 基础提示词 - 使用优化后的值或默认值
+        if 'optimized_prompt_t2v' in st.session_state and st.session_state.optimized_prompt_t2v:
+            default_prompt_t2v = st.session_state.optimized_prompt_t2v
+        else:
+            default_prompt_t2v = "一只可爱的小猫在花园里玩耍"
+            
+        # 创建标题和优化链接
+        prompt_col1, prompt_col2 = st.columns([3, 1])
+        st.write("输入视频描述提示词:")
+            
+        base_prompt_t2v = st.text_area(
+            "视频描述提示词",
+            value=default_prompt_t2v,
+            height=100,
+            key="base_prompt_t2v",
+            label_visibility="collapsed"
+        )
+        optimize_button_t2v = st.button("一键优化", key="optimize_t2v", help="使用AI优化您的提示词", type="secondary")
+        
+        # 处理提示词优化
+        if optimize_button_t2v:
+            if base_prompt_t2v.strip():
+                with st.spinner("正在优化提示词..."):
+                    try:
+                        # 流式显示优化过程
+                        placeholder = st.empty()
+                        optimized_text = ""
+                        
+                        for chunk in optimize_stream(ark_client, "t2v", base_prompt_t2v):
+                            optimized_text += chunk
+                            # 实时显示优化进度
+                            placeholder.text_area(
+                                "优化中...",
+                                value=optimized_text,
+                                height=100,
+                                disabled=True
+                            )
+                        
+                        # 优化完成后保存结果并重新运行
+                        if optimized_text.strip():
+                            st.session_state.optimized_prompt_t2v = optimized_text.strip()
+                            placeholder.empty()  # 清除临时显示
+                            st.success("提示词优化完成！")
+                            st.rerun()
+                        else:
+                            placeholder.empty()
+                            st.error("优化失败，请稍后重试")
+                            
+                    except Exception as e:
+                        st.error(f"优化提示词时出错: {str(e)}")
+            else:
+                st.warning("请先输入提示词再进行优化")
+        
+        # 视频参数
+        st.subheader("视频参数")
+        
+        resolution_t2v = st.selectbox(
+            "分辨率",
+            ["480p", "720p", "1080p"],
+            index=1,
+            key="resolution_t2v"
+        )
+        
+        ratio_t2v = st.selectbox(
+            "宽高比",
+            ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "9:21", "keep_ratio", "adaptive"],
+            index=1,
+            key="ratio_t2v"
+        )
+        
+        duration_t2v = st.selectbox(
+            "时长",
+            ["5", "10"],
+            key="duration_t2v"
+        )
+        
+        fps_t2v = st.selectbox(
+            "帧率",
+            [16, 24],
+            index=1,
+            key="fps_t2v"
+        )
+        
+        watermark_t2v = st.checkbox("添加水印", value=True, key="watermark_t2v")
+        
+        seed_t2v = st.number_input("Seed", value=-1, key="seed_t2v")
+        
+        camera_fixed_t2v = st.checkbox("固定镜头", value=False, key="camera_fixed_t2v")
+        
+        generate_button_t2v = st.button("生成视频", key="button_t2v")
+    
+    with col2:
+        st.subheader("生成结果")
+        
+        if generate_button_t2v:
+            with st.spinner("正在生成视频，请耐心等待..."):
+                # 构建完整的提示词，将参数拼接到提示词末尾
+                full_prompt = base_prompt_t2v
+                full_prompt += f" --resolution {resolution_t2v}"
+                full_prompt += f" --ratio {ratio_t2v}"
+                full_prompt += f" --duration {duration_t2v}"
+                full_prompt += f" --fps {fps_t2v}"
+                full_prompt += f" --watermark {str(watermark_t2v).lower()}"
+                if seed_t2v != -1:
+                    full_prompt += f" --seed {seed_t2v}"
+                full_prompt += f" --camerafixed {str(camera_fixed_t2v).lower()}"
+                
+                st.info(f"完整提示词: {full_prompt}")
+                
+                try:
+                    video_url = t2v_seedance(ark_client, model_t2v, full_prompt)
+                    if video_url:
+                        st.success("视频生成成功！")
+                        st.video(video_url)
+                        st.markdown(f"[下载视频]({video_url})")
+                    else:
+                        st.error("视频生成失败，请检查参数或稍后重试")
+                except Exception as e:
+                    st.error(f"生成视频时出错: {str(e)}")
+
+elif selected_function == "图生视频":
+    st.header("Seedance 1.0 图生视频")
+    st.markdown("接口文档: https://www.volcengine.com/docs/82379/1520757")
+    st.markdown("Seedance-pro 提示词指南: https://bytedance.larkoffice.com/docx/Svl9dMwvCokzZHxamTWcCz5en1f?from=from_copylink")
+    st.markdown("Seedance-lit 提示词指南: https://bytedance.larkoffice.com/docx/UQoSd3NEvoAkghxAl0ccjdplnhR?from=from_copylink")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 模型选择
+        model_i2v = st.selectbox(
+            "选择模型",
+            ["doubao-seedance-1-0-pro-250528", "doubao-seedance-1-0-lite-i2v-250428"],
+            key="model_i2v"
+        )
+        # 首帧图片上传
+        st.subheader("图片上传")
+        first_frame_file = st.file_uploader(
+            "上传首帧图片 (必需)",
+            type=["png", "jpg", "jpeg"],
+            key="first_frame_i2v"
+        )
+        
+        # 根据模型显示尾帧上传选项
+        last_frame_file = None
+        if model_i2v == "doubao-seedance-1-0-lite-i2v-250428":
+            last_frame_file = st.file_uploader(
+                "上传尾帧图片 (可选)",
+                type=["png", "jpg", "jpeg"],
+                key="last_frame_i2v"
+            )
+            st.info("💡 Seedance 1.0 lite 模型支持首帧和尾帧，可以更精确控制视频内容")
+        else:
+            st.info("💡 Seedance 1.0 pro 模型只支持首帧")
+
+        # 基础提示词 - 使用优化后的值或默认值
+        if 'optimized_prompt_i2v' in st.session_state and st.session_state.optimized_prompt_i2v:
+            default_prompt_i2v = st.session_state.optimized_prompt_i2v
+        else:
+            default_prompt_i2v = "让图片中的人物动起来，自然的动作"
+            
+        # 创建标题和优化链接
+        col1_i2v, col2_i2v = st.columns([3, 1])
+        st.write("输入视频描述提示词:")   
+        base_prompt_i2v = st.text_area(
+            "视频描述提示词",
+            value=default_prompt_i2v,
+            height=100,
+            key="base_prompt_i2v",
+            label_visibility="collapsed"
+        )
+        optimize_button_i2v = st.button("一键优化", key="optimize_i2v", help="使用AI优化您的提示词", type="secondary")
+        
+        # 处理提示词优化
+        if optimize_button_i2v:
+            if base_prompt_i2v.strip():
+                with st.spinner("正在优化提示词..."):
+                    try:
+                        # 获取首帧图片的base64编码用于优化
+                        first_frame_url = None
+                        if first_frame_file is not None:
+                            first_frame_base64 = base64.b64encode(first_frame_file.getvalue()).decode('utf-8')
+                            # 根据文件类型设置正确的MIME类型
+                            mime_type = f"image/{first_frame_file.type.split('/')[-1]}" if first_frame_file.type else "image/jpeg"
+                            first_frame_url = f"data:{mime_type};base64,{first_frame_base64}"
+                        
+                        # 流式显示优化过程
+                        placeholder = st.empty()
+                        optimized_text = ""
+                        
+                        for chunk in optimize_stream(ark_client, "i2v", base_prompt_i2v, first_frame_url):
+                            optimized_text += chunk
+                            # 实时显示优化进度
+                            placeholder.text_area(
+                                "优化中...",
+                                value=optimized_text,
+                                height=100,
+                                disabled=True
+                            )
+                        
+                        # 优化完成后保存结果并重新运行
+                        if optimized_text.strip():
+                            st.session_state.optimized_prompt_i2v = optimized_text.strip()
+                            placeholder.empty()  # 清除临时显示
+                            st.success("提示词优化完成！")
+                            st.rerun()
+                        else:
+                            placeholder.empty()
+                            st.error("优化失败，请稍后重试")
+                            
+                    except Exception as e:
+                        st.error(f"优化提示词时出错: {str(e)}")
+            else:
+                st.warning("请先输入提示词再进行优化")
+        
+        # 视频参数
+        st.subheader("视频参数")
+        
+        resolution_i2v = st.selectbox(
+            "分辨率",
+            ["480p", "720p", "1080p"],
+            index=1,
+            key="resolution_i2v"
+        )
+        
+        ratio_i2v = st.selectbox(
+            "宽高比",
+            ["keep_ratio","adaptive"],
+            index=1,
+            key="ratio_i2v"
+        )
+        
+        duration_i2v = st.selectbox(
+            "时长",
+            ["5", "10"],
+            key="duration_i2v"
+        )
+        
+        fps_i2v = st.selectbox(
+            "帧率",
+            [16, 24],
+            index=1,
+            key="fps_i2v"
+        )
+        
+        watermark_i2v = st.checkbox("添加水印", value=True, key="watermark_i2v")
+        
+        seed_i2v = st.number_input("Seed", value=-1, key="seed_i2v")
+        
+        camera_fixed_i2v = st.checkbox("固定镜头", value=False, key="camera_fixed_i2v")
+        
+        generate_button_i2v = st.button("生成视频", key="button_i2v")
+    
+    with col2:
+        st.subheader("图片预览和生成结果")
+        
+        # 图片预览区域
+        preview_col1, preview_col2 = st.columns(2)
+        
+        with preview_col1:
+            st.write("**首帧预览**")
+            if first_frame_file is not None:
+                st.image(first_frame_file, caption="首帧图片")
+            else:
+                st.info("请上传首帧图片")
+        
+        with preview_col2:
+            st.write("**尾帧预览**")
+            if last_frame_file is not None:
+                st.image(last_frame_file, caption="尾帧图片")
+            elif model_i2v == "doubao-seedance-1-0-lite-i2v-250428":
+                st.info("可选择上传尾帧图片")
+            else:
+                st.info("当前模型不支持尾帧")
+        
+        # 生成结果区域
+        st.subheader("生成结果")
+        
+        if generate_button_i2v:
+            if first_frame_file is None:
+                st.error("请先上传首帧图片！")
+            else:
+                with st.spinner("正在生成视频，请耐心等待..."):
+                    try:
+                        # 将图片转换为base64并上传获取URL
+                        # 这里简化处理，实际应该上传到云存储获取URL
+                        first_frame_base64 = base64.b64encode(first_frame_file.getvalue()).decode('utf-8')
+                        # 根据文件类型设置正确的MIME类型
+                        first_frame_mime = f"image/{first_frame_file.type.split('/')[-1]}" if first_frame_file.type else "image/jpeg"
+                        first_frame_url = f"data:{first_frame_mime};base64,{first_frame_base64}"
+                        
+                        last_frame_url = None
+                        if last_frame_file is not None:
+                            last_frame_base64 = base64.b64encode(last_frame_file.getvalue()).decode('utf-8')
+                            # 根据文件类型设置正确的MIME类型
+                            last_frame_mime = f"image/{last_frame_file.type.split('/')[-1]}" if last_frame_file.type else "image/jpeg"
+                            last_frame_url = f"data:{last_frame_mime};base64,{last_frame_base64}"
+                        
+                        # 构建完整的提示词
+                        full_prompt = base_prompt_i2v
+                        full_prompt += f" --resolution {resolution_i2v}"
+                        full_prompt += f" --ratio {ratio_i2v}"
+                        full_prompt += f" --duration {duration_i2v}"
+                        full_prompt += f" --fps {fps_i2v}"
+                        full_prompt += f" --watermark {str(watermark_i2v).lower()}"
+                        if seed_i2v != -1:
+                            full_prompt += f" --seed {seed_i2v}"
+                        full_prompt += f" --camerafixed {str(camera_fixed_i2v).lower()}"
+                        
+                        st.info(f"完整提示词: {full_prompt}")
+                        
+                        # 调用图生视频函数
+                        video_url = i2v_seedance(
+                            ark_client, 
+                            model_i2v, 
+                            full_prompt,
+                            first_frame=first_frame_url,
+                            last_frame=last_frame_url
+                        )
+                        
+                        if video_url:
+                            st.success("视频生成成功！")
+                            st.video(video_url)
+                            st.markdown(f"[下载视频]({video_url})")
+                        else:
+                            st.error("视频生成失败，请检查参数或稍后重试")
+                            
+                    except Exception as e:
+                        st.error(f"生成视频时出错: {str(e)}")
+
+elif selected_function == "设置":
+    st.header("⚙️ 系统设置")
+    st.markdown("在这里配置您的API密钥和其他系统设置")
+    
+    # 创建两列布局
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("API 密钥配置")
+        
+        # 获取当前环境变量值
+        current_volc_ak = os.environ.get("VOLC_ACCESSKEY", "")
+        current_volc_sk = os.environ.get("VOLC_SECRETKEY", "")
+        current_api_key = os.environ.get("API_KEY", "")
+        
+        # 创建表单
+        with st.form("api_settings_form"):
+            st.markdown("**火山引擎 Visual API 配置**")
+            volc_ak = st.text_input(
+                "VOLC_ACCESSKEY",
+                value=current_volc_ak,
+                type="password",
+                help="火山引擎 Access Key"
+            )
+            
+            volc_sk = st.text_input(
+                "VOLC_SECRETKEY", 
+                value=current_volc_sk,
+                type="password",
+                help="火山引擎 Secret Key"
+            )
+            
+            st.markdown("**方舟 API 配置**")
+            api_key = st.text_input(
+                "API_KEY",
+                value=current_api_key,
+                type="password", 
+                help="方舟 API Key"
+            )
+            
+            # 提交按钮
+            submitted = st.form_submit_button("保存设置", type="primary")
+            
+            if submitted:
+                # 更新环境变量
+                if volc_ak:
+                    os.environ["VOLC_ACCESSKEY"] = volc_ak
+                if volc_sk:
+                    os.environ["VOLC_SECRETKEY"] = volc_sk
+                if api_key:
+                    os.environ["API_KEY"] = api_key
+                
+                # 清除缓存的服务实例，强制重新创建
+                st.cache_resource.clear()
+                
+                # 重新初始化服务实例，使其立即使用新的API密钥
+                try:
+                    # 重新执行全局变量赋值，使用新的API密钥
+                    st.session_state.visual_service = get_visual_service()
+                    st.session_state.ark_client = get_ark_client()
+                    
+                    st.success("✅ 设置已保存并立即生效！")
+                    st.info("💡 提示：为了安全起见，建议在系统环境变量中设置这些密钥。")
+                except Exception as e:
+                    st.error(f"❌ 重新初始化服务时出错: {str(e)}")
+                    st.warning("⚠️ 设置已保存，但可能需要刷新页面才能生效。")
+    
+    with col2:
+        st.subheader("设置说明")
+        
+        st.markdown("""
+        **如何获取API密钥：**
+        
+        🔥 **火山引擎 Visual API**
+        1. 访问 [火山引擎控制台](https://console.volcengine.com/)
+        2. 进入"访问控制" → "访问密钥"
+        3. 创建或查看 AccessKey 和 SecretKey
+        
+        🚀 **方舟 API**
+        1. 访问 [方舟控制台](https://console.volcengine.com/ark/)
+        2. 进入"API管理"
+        3. 创建或查看 API Key
+        
+        **安全建议：**
+        - 不要在代码中硬编码密钥
+        - 定期轮换API密钥
+        - 使用环境变量存储敏感信息
+        """)
+        
+        # 显示当前配置状态
+        st.subheader("当前配置状态")
+        
+        # 检查配置状态
+        volc_status = "✅ 已配置" if current_volc_ak and current_volc_sk else "❌ 未配置"
+        ark_status = "✅ 已配置" if current_api_key else "❌ 未配置"
+        
+        st.markdown(f"""
+        **火山引擎 Visual API:** {volc_status}
+        
+        **方舟 API:** {ark_status}
+        """)
+        
+        # 测试连接按钮
+        if st.button("🔍 测试连接", help="测试API密钥是否有效"):
+            with st.spinner("正在测试连接..."):
+                try:
+                    # 这里可以添加实际的API测试逻辑
+                    # 暂时显示配置状态
+                    if current_volc_ak and current_volc_sk and current_api_key:
+                        st.success("✅ 所有API密钥已配置")
+                    else:
+                        missing = []
+                        if not current_volc_ak or not current_volc_sk:
+                            missing.append("火山引擎 Visual API")
+                        if not current_api_key:
+                            missing.append("方舟 API")
+                        st.warning(f"⚠️ 缺少配置: {', '.join(missing)}")
+                except Exception as e:
+                    st.error(f"❌ 连接测试失败: {str(e)}")
+
+# if __name__ == "__main__":
+#     from streamlit.web import cli as stcli
+#     import sys
+#     sys.argv = ["streamlit", "run", "app.py"]
+#     stcli.main()
