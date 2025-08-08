@@ -339,3 +339,82 @@ def i2v_seedance(ark_client, model, prompt, first_frame=None, last_frame=None):
             if result.status == 'succeeded' and hasattr(result, 'content') and hasattr(result.content, 'video_url'):
                 return result.content.video_url
             time.sleep(5)
+
+
+def omni_human_pre_test(visual_service,image_url):
+    form = {
+        "req_key": "realman_avatar_picture_create_role_omni",
+        "image_url": image_url,
+    }
+    resp = visual_service.cv_submit_task(form)
+    if resp['code'] != 10000:
+        print(resp.get('message', 'Unknown error'))
+        return None
+
+    task_id = resp['data']['task_id']
+    while True:
+        result = visual_service.cv_get_result({
+            "req_key": "realman_avatar_picture_create_role_omni",
+            "task_id": task_id
+        })
+        print(f"{result} \n")
+        if result['code'] != 10000:
+            print(result.get('message', 'Unknown error'))
+            return None
+        if result.get('data', {}).get('status') == "done":
+            resp_data = json.loads(result.get('data').get('resp_data'))
+            return resp_data.get("status")
+        time.sleep(3)
+
+# OmniHuman
+def omni_human(visual_service,image_url,audio_url):
+    if not image_url and not audio_url:
+        raise ValueError("Either image_url and audio_url must be provided")
+
+    # result = omni_human_pre_test(visual_service,image_url)
+
+    # print(result)
+
+    form = {
+        "req_key": "realman_avatar_picture_omni_v2",
+        "image_url": image_url,
+        "audio_url": audio_url
+    }
+
+    resp = visual_service.cv_submit_task(form)
+    if resp['code'] != 10000:
+        print(resp.get('message', 'Unknown error'))
+        return None
+
+    task_id = resp['data']['task_id']
+    while True:
+        result = visual_service.cv_get_result({
+            "req_key": "realman_avatar_picture_omni_v2",
+            "task_id": task_id
+        })
+        print(f"{result} \n")
+        if result['code'] != 10000:
+            print(result.get('message', 'Unknown error'))
+            return None
+        if result.get('data', {}).get('status') == "done":
+            resp_data = json.loads(result.get('data').get('resp_data'))
+            return resp_data.get('video_url')
+        time.sleep(5)
+
+
+
+if __name__ == "__main__":
+
+    ak = os.environ.get("VOLC_ACCESSKEY", "AKLTYjRjNTE2ZjkwMTIyNGZmMTlmMjczNGJmZWYwYWIwOGY")
+    sk = os.environ.get("VOLC_SECRETKEY", "TXpSalpXUm1OREl4WldJNE5HSXlNbUpqWTJRNFpETmlNRGcyTVdFellUYw==")
+    visual_service = VisualService()
+    visual_service.set_ak(ak)
+    visual_service.set_sk(sk)
+    image_url = "https://qwer123.tos-cn-beijing.volces.com/omnihuman-image.jpg"
+    # image_url = "https://qwer123.tos-cn-beijing.volces.com/omnihuman-fotor.jpg"
+    audio_url = "https://qwer123.tos-cn-beijing.volces.com/audio-002.m4a"
+
+    check_result = omni_human_pre_test(visual_service,image_url)
+    print(f"pre check result : {check_result}")
+    url = omni_human(visual_service,image_url,audio_url)
+    print(url)

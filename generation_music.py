@@ -18,7 +18,7 @@ def get_response(response):
     return response_json.get('Code'), response_json.get('Message'), response_json.get('Result'), response_json.get(
         'ResponseMetadata')
 
-def sign(body={},action="",service="imagination"):
+def sign(body={},action="",service="imagination",ak="",sk=""):
     query = {'Action':  action,
              'Version': version}
     x_content_sha256 = Sign.hash_sha256(json.dumps(body))
@@ -44,7 +44,7 @@ def generation_bgm(ak,sk,text,genre,mood,instrument,theme,Duration=5):
         'Instrument': instrument,
         'Duration': Duration,
     }
-    authorization,headers = sign(body=body,action="GenBGM",service="imagination")
+    authorization,headers = sign(body=body,action="GenBGM",service="imagination",ak=ak,sk=sk)
     # 发送生成BGM的请求
     response = requests.post(Sign.get_url(host, path, "GenBGM", version), data=json.dumps(body), headers=headers)
     # 查询歌曲生成信息
@@ -56,15 +56,7 @@ def generation_bgm(ak,sk,text,genre,mood,instrument,theme,Duration=5):
     time.sleep(predictedWaitTime)
     body = {'TaskID': taskId}
 
-    # 查询请求签名
-    # x_content_sha256 = Sign.hash_sha256(json.dumps(body))
-    # headers['X-Content-Sha256'] = x_content_sha256
-    # headers['X-Date'] = Sign.get_x_date()
-    # action = 'QuerySong'
-    # query["Action"] = action
-    # authorization = Sign.get_authorization("POST", headers=headers, query=query, service=service, region=region, ak=ak,                                       sk=sk)
-    # headers["Authorization"] = authorization
-    authorization,headers = sign(body=body,action="QuerySong",service="imagination")
+    authorization,headers = sign(body=body,action="QuerySong",service="imagination",ak=ak,sk=sk)
     songDetail = None
     while True:
         response = requests.post(Sign.get_url(host, path, "QuerySong", version), data=json.dumps(body), headers=headers)
@@ -95,15 +87,4 @@ def generation_bgm(ak,sk,text,genre,mood,instrument,theme,Duration=5):
         print(f"===>AudioUrl:{audioUrl}")
 
     return audioUrl
-
-if __name__ == "__main__":
-    ak = "AKLTYjRjNTE2ZjkwMTIyNGZmMTlmMjczNGJmZWYwYWIwOGY"
-    sk = "TXpSalpXUm1OREl4WldJNE5HSXlNbUpqWTJRNFpETmlNRGcyTVdFellUYw=="
-    text = "现代感十足的商业广告配乐"
-    genre = ["corporate"]
-    mood = ["peaceful",'soft']
-    Instrument=['piano','strings']
-    Theme = ["every day"]
-    Duration = 5 # 单位：秒，范围：[1,60]
-    generation_bgm(ak,sk,text,genre,mood,Instrument,Theme,Duration)
     

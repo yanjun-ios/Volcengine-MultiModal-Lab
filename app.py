@@ -1,5 +1,6 @@
 import streamlit as st
-from generation_image_sdk import t2i_30, i2i_30_portrait, i2i_seed_edit_30, t2v_seedance, i2v_seedance, i2i_30_single_ip, ark_t2i, ark_i2i, t2i_jimeng, i2i_jimeng_v30, t2v_jimeng_s20_pro, i2v_jimeng_s20_pro
+from generation_image_sdk import t2i_30, i2i_30_portrait, i2i_seed_edit_30, t2v_seedance, i2v_seedance, i2i_30_single_ip, ark_t2i, ark_i2i, t2i_jimeng, i2i_jimeng_v30, t2v_jimeng_s20_pro, i2v_jimeng_s20_pro, omni_human_pre_test, omni_human
+from generation_music import generation_bgm
 from volcengine.visual.VisualService import VisualService
 from volcenginesdkarkruntime import Ark
 from llm_prompt_optmize import optimize_stream
@@ -9,19 +10,28 @@ import os
 st.set_page_config(page_title="Image Generation", page_icon="🎨", layout="wide")
 
 @st.cache_resource
-def get_visual_service():
-    # It's recommended to use environment variables for AK and SK
+def set_auth():
     ak = os.environ.get("VOLC_ACCESSKEY", "")
     sk = os.environ.get("VOLC_SECRETKEY", "")
+    api_key = os.environ.get("API_KEY", "")
+    st.session_state.ak = ak
+    st.session_state.sk = sk
+    st.session_state.api_key = api_key
+
+@st.cache_resource
+def get_visual_service():
+    # It's recommended to use environment variables for AK and SK
     visual_service = VisualService()
-    visual_service.set_ak(ak)
-    visual_service.set_sk(sk)
+    visual_service.set_ak(st.session_state.ak)
+    visual_service.set_sk(st.session_state.sk)
     return visual_service
 
 @st.cache_resource
 def get_ark_client():
-    api_key = os.environ.get("API_KEY", "dcc187e6-0550-4759-a3e5-63b9b57ec387")
-    return Ark(api_key=api_key)
+    return Ark(api_key=st.session_state.api_key)
+
+# 初始化设置
+set_auth()
 
 # 初始化服务实例到 session_state
 if 'visual_service' not in st.session_state:
@@ -132,7 +142,7 @@ menu_options = [
     "既梦AI-图生视频",
     "TTS",
     "音乐生成",
-    "数字人"
+    "数字人(Omni_Human)"
 ]
 
 # 添加分组标题
@@ -1189,6 +1199,512 @@ elif selected_function == "图生视频":
                     except Exception as e:
                         st.error(f"生成视频时出错: {str(e)}")
 
+elif selected_function == "音乐生成":
+    st.header("🎵 音乐生成")
+    st.markdown("使用火山引擎音乐生成API创建背景音乐")
+    st.markdown("接口文档: https://www.volcengine.com/docs/84992/1535146")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 文本描述
+        text_music = st.text_area(
+            "音乐描述文本:",
+            "现代感十足的商业广告配乐",
+            height=100,
+            key="text_music",
+            help="描述您想要生成的音乐风格和用途"
+        )
+        
+        # 音乐时长
+        duration_music = st.slider(
+            "音乐时长 (秒)",
+            min_value=1,
+            max_value=60,
+            value=15,
+            key="duration_music",
+            help="生成音乐的时长，范围1-60秒"
+        )
+        
+        # 音乐风格 (Genre) - 多选
+        st.subheader("音乐风格 (Genre)")
+        genre_options = [
+            "pop(流行)", "rock(摇滚)", "jazz(爵士)", "classical(古典)", "electronic(电子)", "hip-hop(嘻哈)", 
+            "country(乡村)", "folk(民谣)", "blues(蓝调)", "reggae(雷鬼)", "latin(拉丁)", "world(世界音乐)",
+            "ambient(环境音乐)", "cinematic(电影配乐)", "corporate(企业)", "upbeat(欢快)", "chill(轻松)", "dramatic(戏剧性)"
+        ]
+        
+        selected_genres_display = st.multiselect(
+            "选择音乐风格 (最多10个):",
+            options=genre_options,
+            default=["corporate(企业)"],
+            key="genre_music",
+            help="选择适合的音乐风格，可多选"
+        )
+        
+        # 提取英文部分用于API调用
+        selected_genres = [genre.split('(')[0] for genre in selected_genres_display]
+        
+        # 限制选择数量
+        if len(selected_genres) > 10:
+            st.warning("⚠️ 最多只能选择10个风格，请减少选择")
+            selected_genres = selected_genres[:10]
+        
+        # 音乐情绪 (Mood) - 多选
+        st.subheader("音乐情绪 (Mood)")
+        mood_options = [
+            "happy(快乐)", "sad(悲伤)", "energetic(充满活力)", "calm(平静)", "peaceful(宁静)", "soft(柔和)",
+            "dramatic(戏剧性)", "mysterious(神秘)", "romantic(浪漫)", "nostalgic(怀旧)", "hopeful(充满希望)",
+            "tense(紧张)", "relaxing(放松)", "uplifting(振奋)", "melancholic(忧郁)", "triumphant(胜利)"
+        ]
+        
+        selected_moods_display = st.multiselect(
+            "选择音乐情绪 (最多10个):",
+            options=mood_options,
+            default=["peaceful(宁静)", "soft(柔和)"],
+            key="mood_music",
+            help="选择音乐要表达的情绪，可多选"
+        )
+        
+        # 提取英文部分用于API调用
+        selected_moods = [mood.split('(')[0] for mood in selected_moods_display]
+        
+        # 限制选择数量
+        if len(selected_moods) > 10:
+            st.warning("⚠️ 最多只能选择10个情绪，请减少选择")
+            selected_moods = selected_moods[:10]
+        
+        # 乐器 (Instrument) - 多选
+        st.subheader("乐器 (Instrument)")
+        instrument_options = [
+            "piano(钢琴)", "guitar(吉他)", "violin(小提琴)", "drums(鼓)", "bass(贝斯)", "strings(弦乐)",
+            "brass(铜管乐)", "woodwind(木管乐)", "synthesizer(合成器)", "organ(管风琴)", "harp(竖琴)",
+            "flute(长笛)", "saxophone(萨克斯)", "trumpet(小号)", "cello(大提琴)", "acoustic_guitar(原声吉他)"
+        ]
+        
+        selected_instruments_display = st.multiselect(
+            "选择乐器 (最多10个):",
+            options=instrument_options,
+            default=["piano(钢琴)", "strings(弦乐)"],
+            key="instrument_music",
+            help="选择想要包含的乐器，可多选"
+        )
+        
+        # 提取英文部分用于API调用
+        selected_instruments = [instrument.split('(')[0] for instrument in selected_instruments_display]
+        
+        # 限制选择数量
+        if len(selected_instruments) > 10:
+            st.warning("⚠️ 最多只能选择10个乐器，请减少选择")
+            selected_instruments = selected_instruments[:10]
+        
+        # 主题 (Theme) - 多选
+        st.subheader("音乐主题 (Theme)")
+        theme_options = [
+            "every day(日常)", "celebration(庆祝)", "adventure(冒险)", "romance(浪漫)", "nature(自然)",
+            "technology(科技)", "business(商务)", "travel(旅行)", "family(家庭)", "friendship(友谊)",
+            "success(成功)", "inspiration(励志)", "meditation(冥想)", "workout(健身)", "party(派对)"
+        ]
+        
+        selected_themes_display = st.multiselect(
+            "选择音乐主题 (最多10个):",
+            options=theme_options,
+            default=["every day(日常)"],
+            key="theme_music",
+            help="选择音乐的主题场景，可多选"
+        )
+        
+        # 提取英文部分用于API调用
+        selected_themes = [theme.split('(')[0] for theme in selected_themes_display]
+        
+        # 限制选择数量
+        if len(selected_themes) > 10:
+            st.warning("⚠️ 最多只能选择10个主题，请减少选择")
+            selected_themes = selected_themes[:10]
+        
+        # 生成按钮
+        generate_button_music = st.button("🎵 生成音乐", key="button_music", type="primary")
+    
+    with col2:
+        st.subheader("生成结果")
+        
+        # 显示当前选择的参数
+        with st.expander("📋 当前参数预览", expanded=True):
+            st.write(f"**描述文本:** {text_music}")
+            st.write(f"**时长:** {duration_music} 秒")
+            st.write(f"**风格:** {', '.join(selected_genres) if selected_genres else '未选择'}")
+            st.write(f"**情绪:** {', '.join(selected_moods) if selected_moods else '未选择'}")
+            st.write(f"**乐器:** {', '.join(selected_instruments) if selected_instruments else '未选择'}")
+            st.write(f"**主题:** {', '.join(selected_themes) if selected_themes else '未选择'}")
+        
+        if generate_button_music:
+            # 验证必要参数
+            if not text_music.strip():
+                st.error("❌ 请输入音乐描述文本")
+            elif not selected_genres:
+                st.error("❌ 请至少选择一个音乐风格")
+            elif not selected_moods:
+                st.error("❌ 请至少选择一个音乐情绪")
+            elif not selected_instruments:
+                st.error("❌ 请至少选择一个乐器")
+            elif not selected_themes:
+                st.error("❌ 请至少选择一个音乐主题")
+            elif len(selected_genres) > 10 or len(selected_moods) > 10 or len(selected_instruments) > 10 or len(selected_themes) > 10:
+                st.error("❌ 每个类别最多只能选择10个选项")
+            else:
+                # 获取API密钥 - 使用与图像生成相同的密钥
+                music_ak = st.session_state.ak
+                music_sk = st.session_state.sk
+                
+                if not music_ak or not music_sk:
+                    st.error("❌ 请先在设置页面配置火山引擎API密钥 (VOLC_ACCESSKEY 和 VOLC_SECRETKEY)")
+                    st.info("💡 提示：音乐生成使用与图像生成相同的火山引擎API密钥")
+                else:
+                    with st.spinner("🎵 正在生成音乐，请耐心等待..."):
+                        try:
+                            set_auth()
+                            # 调用音乐生成API
+                            audio_url = generation_bgm(
+                                ak=music_ak,
+                                sk=music_sk,
+                                text=text_music,
+                                genre=selected_genres,
+                                mood=selected_moods,
+                                instrument=selected_instruments,
+                                theme=selected_themes,
+                                Duration=duration_music
+                            )
+                            
+                            if audio_url:
+                                st.success("✅ 音乐生成成功！")
+                                
+                                # 音频播放器 - 直接下载并播放
+                                st.subheader("🎵 音频播放器")
+                                
+                                try:
+                                    with st.spinner("🔄 正在下载音频文件..."):
+                                        import requests
+                                        import tempfile
+                                        import os
+                                        
+                                        # 下载音频文件
+                                        response = requests.get(audio_url, timeout=30)
+                                        response.raise_for_status()
+                                        
+                                        # 根据Content-Type确定文件扩展名
+                                        content_type = response.headers.get('content-type', '').lower()
+                                        if 'mp3' in content_type:
+                                            ext = '.mp3'
+                                            audio_format = 'audio/mp3'
+                                        elif 'wav' in content_type:
+                                            ext = '.wav'
+                                            audio_format = 'audio/wav'
+                                        elif 'ogg' in content_type:
+                                            ext = '.ogg'
+                                            audio_format = 'audio/ogg'
+                                        elif 'mp4' in content_type:
+                                            ext = '.mp4'
+                                            audio_format = 'audio/mp4'
+                                        else:
+                                            # 默认为mp3，但也尝试从URL推断
+                                            if audio_url.lower().endswith('.wav'):
+                                                ext = '.wav'
+                                                audio_format = 'audio/wav'
+                                            elif audio_url.lower().endswith('.ogg'):
+                                                ext = '.ogg'
+                                                audio_format = 'audio/ogg'
+                                            else:
+                                                ext = '.mp3'
+                                                audio_format = 'audio/mp3'
+                                        
+                                        # 直接使用音频字节数据播放
+                                        audio_bytes = response.content
+                                        st.audio(audio_bytes, format=audio_format)
+                                        st.success("✅ 音频加载成功！")
+                                        
+                                        # 显示文件信息
+                                        file_size_kb = len(audio_bytes) / 1024
+                                        st.info(f"🎵 **音乐信息:** 时长 {duration_music} 秒 | 文件大小 {file_size_kb:.1f} KB | 格式 {ext[1:].upper()}")
+                                        
+                                except requests.exceptions.RequestException as e:
+                                    st.error(f"❌ 下载音频文件失败: {str(e)}")
+                                    st.write("可能的原因：")
+                                    st.write("- 网络连接问题")
+                                    st.write("- 音频URL已过期")
+                                    st.write("- 服务器响应超时")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ 音频播放失败: {str(e)}")
+                                    st.write("可能的原因：")
+                                    st.write("- 音频文件格式不支持")
+                                    st.write("- 文件损坏或不完整")
+                                
+                                # 提供下载链接
+                                st.markdown("---")
+                                st.subheader("📥 下载选项")
+                                st.markdown(f"🔗 [点击下载音乐文件]({audio_url})")
+                                st.info("💡 **提示:** 右键点击上方链接，选择'另存为'可将音频文件保存到本地。")
+                                
+                                # 调试信息（可选展开）
+                                with st.expander("🔍 调试信息", expanded=False):
+                                    st.code(f"音频URL: {audio_url}")
+                                    try:
+                                        response_info = requests.head(audio_url, timeout=10)
+                                        st.write(f"**HTTP状态码:** {response_info.status_code}")
+                                        st.write(f"**Content-Type:** {response_info.headers.get('content-type', 'unknown')}")
+                                        content_length = response_info.headers.get('content-length')
+                                        if content_length:
+                                            st.write(f"**文件大小:** {int(content_length)/1024:.1f} KB")
+                                    except Exception as e:
+                                        st.write(f"**无法获取文件信息:** {str(e)}")
+                                
+                            else:
+                                st.error("❌ 音乐生成失败，请检查参数或稍后重试")
+                                
+                        except Exception as e:
+                            st.error(f"❌ 生成音乐时出错: {str(e)}")
+                            st.info("💡 请检查API密钥是否正确，或稍后重试")
+
+elif selected_function == "TTS":
+    st.header("🗣️ 文本转语音 (TTS)")
+    st.markdown("TTS功能开发中...")
+    st.info("💡 该功能正在开发中，敬请期待！")
+
+elif selected_function == "数字人(Omni_Human)":
+    st.header("👤 数字人(Omni_Human)")
+    st.markdown("接口文档: https://www.volcengine.com/docs/85128/1602254")
+    st.markdown("💡 数字人功能可以根据输入的图片和音频生成数字人视频")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 图片输入
+        st.subheader("📷 人物图片")
+        input_method_omni = st.radio("选择图片来源", ("URL", "上传图片"), key="input_method_omni")
+        image_url_omni = None
+        uploaded_file_omni = None
+
+        if input_method_omni == "URL":
+            image_url_omni = st.text_input(
+                "输入人物图片 URL:", 
+                "https://qwer123.tos-cn-beijing.volces.com/omnihuman-image.jpg", 
+                key="image_url_omni",
+                help="请输入清晰的人物正面照片URL"
+            )
+        else:
+            uploaded_file_omni = st.file_uploader(
+                "上传人物图片", 
+                type=["png", "jpg", "jpeg"], 
+                key="file_uploader_omni",
+                help="请上传清晰的人物正面照片"
+            )
+        
+        # 音频输入
+        st.subheader("🎵 音频文件")
+        audio_input_method = st.radio("选择音频来源", ("URL", "上传音频"), key="audio_input_method")
+        audio_url_omni = None
+        uploaded_audio_omni = None
+        
+        if audio_input_method == "URL":
+            audio_url_omni = st.text_input(
+                "输入音频 URL:", 
+                "https://qwer123.tos-cn-beijing.volces.com/audio-002.m4a", 
+                key="audio_url_omni",
+                help="支持 mp3, wav, m4a 等格式"
+            )
+        else:
+            uploaded_audio_omni = st.file_uploader(
+                "上传音频文件", 
+                type=["mp3", "wav", "m4a", "aac"], 
+                key="file_uploader_audio_omni",
+                help="支持 mp3, wav, m4a, aac 等格式"
+            )
+        
+        # 生成按钮
+        col_check, col_generate = st.columns(2)
+        
+        with col_check:
+            check_button_omni = st.button("🔍 前置检查", key="check_button_omni", help="检查图片是否适合生成数字人")
+        
+        with col_generate:
+            generate_button_omni = st.button("🎬 生成数字人视频", key="generate_button_omni", type="primary")
+    
+    with col2:
+        st.subheader("预览和生成结果")
+        
+        # 预览区域
+        preview_col1, preview_col2 = st.columns(2)
+        
+        with preview_col1:
+            st.write("**图片预览**")
+            preview_image_omni = None
+            if input_method_omni == "URL" and image_url_omni:
+                preview_image_omni = image_url_omni
+            elif input_method_omni == "上传图片" and uploaded_file_omni is not None:
+                preview_image_omni = uploaded_file_omni
+            
+            if preview_image_omni is not None:
+                st.image(preview_image_omni, caption="人物图片", use_container_width=True)
+            else:
+                st.info("请上传或输入人物图片")
+        
+        with preview_col2:
+            st.write("**音频预览**")
+            if audio_input_method == "URL" and audio_url_omni:
+                try:
+                    st.audio(audio_url_omni)
+                    st.success("✅ 音频URL有效")
+                except Exception as e:
+                    st.warning(f"⚠️ 无法预览音频: {str(e)}")
+            elif audio_input_method == "上传音频" and uploaded_audio_omni is not None:
+                st.audio(uploaded_audio_omni.getvalue())
+                st.success("✅ 音频文件已上传")
+            else:
+                st.info("请上传或输入音频文件")
+        
+        # 前置检查结果
+        if check_button_omni:
+            # 验证输入
+            final_image_url = None
+            if input_method_omni == "URL" and image_url_omni:
+                final_image_url = image_url_omni
+            elif input_method_omni == "上传图片" and uploaded_file_omni is not None:
+                # 对于上传的图片，这里简化处理，实际应该上传到云存储获取URL
+                st.warning("⚠️ 上传图片功能需要先上传到云存储获取URL，当前仅支持URL输入进行前置检查")
+                final_image_url = None
+            
+            if not final_image_url:
+                st.error("❌ 请先输入有效的图片URL进行前置检查")
+            else:
+                with st.spinner("🔍 正在进行前置检查..."):
+                    try:
+                        check_result = omni_human_pre_test(visual_service, final_image_url)
+                        
+                        if check_result == 1:
+                            st.success("✅ 前置检查通过！图片适合生成数字人视频")
+                            st.session_state.omni_check_passed = True
+                            st.session_state.omni_checked_image_url = final_image_url
+                        else:
+                            st.error(f"❌ 前置检查未通过，检查结果: {check_result}")
+                            st.warning("请尝试使用以下类型的图片：")
+                            st.write("- 清晰的人物正面照")
+                            st.write("- 人脸清晰可见")
+                            st.write("- 光线充足")
+                            st.write("- 背景简洁")
+                            st.session_state.omni_check_passed = False
+                            
+                    except Exception as e:
+                        st.error(f"❌ 前置检查失败: {str(e)}")
+                        st.session_state.omni_check_passed = False
+        
+        # 生成数字人视频
+        if generate_button_omni:
+            # 检查是否已通过前置检查
+            if not st.session_state.get('omni_check_passed', False):
+                st.error("❌ 请先进行前置检查并确保检查通过")
+            else:
+                # 准备最终的图片和音频URL
+                final_image_url = st.session_state.get('omni_checked_image_url')
+                final_audio_url = None
+                
+                if audio_input_method == "URL" and audio_url_omni:
+                    final_audio_url = audio_url_omni
+                elif audio_input_method == "上传音频" and uploaded_audio_omni is not None:
+                    # 对于上传的音频，这里简化处理，实际应该上传到云存储获取URL
+                    st.warning("⚠️ 上传音频功能需要先上传到云存储获取URL，当前仅支持URL输入")
+                    final_audio_url = None
+                
+                if not final_image_url or not final_audio_url:
+                    st.error("❌ 请确保图片和音频URL都已正确输入")
+                else:
+                    with st.spinner("🎬 正在生成数字人视频，请耐心等待..."):
+                        try:
+                            video_url = omni_human(visual_service, final_image_url, final_audio_url)
+                            
+                            if video_url:
+                                st.success("✅ 数字人视频生成成功！")
+                                
+                                # 显示生成的视频
+                                st.subheader("🎬 生成的数字人视频")
+                                
+                                try:
+                                    # 尝试直接显示视频
+                                    st.video(video_url)
+                                    st.success("✅ 视频加载成功！")
+                                    
+                                    # 提供下载链接
+                                    st.markdown("---")
+                                    st.subheader("📥 下载选项")
+                                    st.markdown(f"🔗 [点击下载数字人视频]({video_url})")
+                                    st.info("💡 **提示:** 右键点击上方链接，选择'另存为'可将视频文件保存到本地。")
+                                    
+                                    # 显示视频信息
+                                    with st.expander("🔍 视频信息", expanded=False):
+                                        st.code(f"视频URL: {video_url}")
+                                        try:
+                                            import requests
+                                            response_info = requests.head(video_url, timeout=10)
+                                            st.write(f"**HTTP状态码:** {response_info.status_code}")
+                                            content_type = response_info.headers.get('content-type', 'unknown')
+                                            st.write(f"**Content-Type:** {content_type}")
+                                            content_length = response_info.headers.get('content-length')
+                                            if content_length:
+                                                st.write(f"**文件大小:** {int(content_length)/(1024*1024):.1f} MB")
+                                        except Exception as e:
+                                            st.write(f"**无法获取视频详细信息:** {str(e)}")
+                                    
+                                except Exception as e:
+                                    st.warning(f"⚠️ 视频预览失败: {str(e)}")
+                                    st.write("**可能的原因:**")
+                                    st.write("- 视频文件格式不支持在线预览")
+                                    st.write("- 网络连接问题")
+                                    st.write("- 视频文件较大，加载时间较长")
+                                    
+                                    # 仍然提供下载链接
+                                    st.markdown("---")
+                                    st.subheader("📥 下载选项")
+                                    st.markdown(f"🔗 [点击下载数字人视频]({video_url})")
+                                    st.info("💡 **提示:** 请直接点击下载链接获取视频文件。")
+                                
+                            else:
+                                st.error("❌ 数字人视频生成失败，请检查参数或稍后重试")
+                                
+                        except Exception as e:
+                            st.error(f"❌ 生成数字人视频时出错: {str(e)}")
+                            st.info("💡 请检查网络连接和API配置，或稍后重试")
+        
+        # 使用说明
+        with st.expander("📖 使用说明", expanded=False):
+            st.markdown("""
+            **数字人生成步骤：**
+            
+            1. **准备素材**
+               - 人物图片：清晰的正面照，人脸清晰可见
+               - 音频文件：支持 mp3, wav, m4a 等格式
+            
+            2. **前置检查**
+               - 点击"前置检查"按钮验证图片是否适合
+               - 只有检查通过的图片才能用于生成数字人
+            
+            3. **生成视频**
+               - 确保前置检查通过后，点击"生成数字人视频"
+               - 生成过程可能需要几分钟，请耐心等待
+            
+            **注意事项：**
+            - 图片要求：人物正面照，光线充足，背景简洁
+            - 音频要求：清晰的语音，建议时长不超过60秒
+            - 当前版本仅支持URL输入，上传功能需要配置云存储
+            
+            **技术支持：**
+            - 如遇到问题，请检查API密钥配置
+            - 确保网络连接稳定
+            - 建议使用Chrome或Firefox浏览器
+            """)
+
 elif selected_function == "设置":
     st.header("⚙️ 系统设置")
     st.markdown("在这里配置您的API密钥和其他系统设置")
@@ -1228,7 +1744,7 @@ elif selected_function == "设置":
                 type="password", 
                 help="方舟 API Key"
             )
-            
+                      
             # 提交按钮
             submitted = st.form_submit_button("保存设置", type="primary")
             
@@ -1272,6 +1788,8 @@ elif selected_function == "设置":
         2. 进入"API管理"
         3. 创建或查看 API Key
         
+        💡 **注意：** 音乐生成功能使用与图像生成相同的火山引擎API密钥
+        
         **安全建议：**
         - 不要在代码中硬编码密钥
         - 定期轮换API密钥
@@ -1287,6 +1805,7 @@ elif selected_function == "设置":
         
         st.markdown(f"""
         **火山引擎 Visual API:** {volc_status}
+        (图像生成和音乐生成共用此API密钥)
         
         **方舟 API:** {ark_status}
         """)
