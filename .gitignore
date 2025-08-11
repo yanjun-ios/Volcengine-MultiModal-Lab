@@ -11,3 +11,6 @@ wheels/
 
 # kiro
 .kiro
+
+# env
+.env
