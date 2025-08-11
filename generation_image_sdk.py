@@ -135,6 +135,43 @@ def i2i_30_single_ip(visual_service, prompt, seed=-1, width=1024, height=1024, i
             return result.get('data', {}).get('image_urls')[0]
         time.sleep(5)
 
+# 智能绘图 - 图像特效
+def i21_multi_style(visual_service, image_url=None, image_base64=None, template_id="felt_3d_polaroid", width=1024, height=1024):
+    if not image_url and not image_base64:
+        raise ValueError("Either image_url or image_base64 must be provided")
+
+    form = {
+        "req_key": "i2i_multi_style_zx2x",
+        "template_id": template_id,
+        "width": width,
+        "height": height
+    }
+
+    if image_url:
+        form["image_input1"] = image_url
+    elif image_base64:
+        form["binary_data_base64"] = [image_base64]
+
+    resp = visual_service.cv_sync2async_submit_task(form)
+    if resp['code'] != 10000:
+        print(resp.get('message', 'Unknown error'))
+        return None
+
+    task_id = resp['data']['task_id']
+    while True:
+        result = visual_service.cv_sync2async_get_result({
+            "req_key": "i2i_multi_style_zx2x",
+            "task_id": task_id,
+            "req_json": "{\"logo_info\":{\"add_logo\":true,\"position\":0,\"language\":0,\"opacity\":0.3,\"logo_text_content\":\"这里是明水印内容\"},\"return_url\":true}"
+        })
+        if result['code'] != 10000:
+            print(result.get('message', 'Unknown error'))
+            return None
+        if result.get('data', {}).get('image_urls'):
+            return result.get('data', {}).get('image_urls')[0]
+        time.sleep(5)
+
+
 # 方舟 文生图 3.0
 def ark_t2i(ark_client,model="doubao-seedream-3-0-t2i-250415",prompt="",size="1024x1024",seed=-1,guidance_scale=2.5,watermark=True):
     imagesResponse = ark_client.images.generate(
