@@ -138,8 +138,8 @@ def get_result(access_key,secret_key,task_id):
 
 if __name__ == "__main__":
     # 请求凭证，从访问控制申请
-    access_key = 'AKLTYjRjNTE2ZjkwMTIyNGZmMTlmMjczNGJmZWYwYWIwOGY'
-    secret_key = 'TXpSalpXUm1OREl4WldJNE5HSXlNbUpqWTJRNFpETmlNRGcyTVdFellUYw=='
+    access_key = '*'
+    secret_key = '*'
 
     result = infer(access_key,secret_key)
     
