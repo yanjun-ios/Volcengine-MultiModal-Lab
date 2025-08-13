@@ -28,12 +28,27 @@ uv sync --no-dev
 # uv add volcengine streamlit
 ```
 
-## 3.设置AK SK
+## 3.设置环境变量
+创建 `.env` 文件并设置 AK SK：
+```bash
+# 创建 .env 文件
+touch .env
 ```
-export VOLC_ACCESS_KEY=
-export VOLC_SECRET_KEY=
-export API_KEY=
+
+在 `.env` 文件中添加以下配置：
+```env
+# 火山引擎 API 密钥
+VOLCENGINE_API_KEY=your_volcengine_api_key_here
+
+# 火山引擎访问密钥
+VOLC_ACCESSKEY=your_access_key_here
+VOLC_SECRETKEY=your_secret_key_here
+
+# TOS 存储桶名称
+TOS_BUCKET_NAME=your_bucket_name_here
 ```
+
+> 注意：请将上述占位符替换为你的实际密钥值，并确保 `.env` 文件已添加到 `.gitignore` 中以避免泄露敏感信息。
 
 ## 4.启动应用
 ```

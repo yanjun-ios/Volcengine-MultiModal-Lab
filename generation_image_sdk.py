@@ -202,7 +202,7 @@ def ark_i2i(ark_client,model="doubao-seededit-3-0-i2i-250628",prompt="",image=""
     if imagesResponse.data[0].url:
         return imagesResponse.data[0].url
 
-# 既梦 AI 图像生成
+# 既梦 AI 文生图2.1
 def t2i_jimeng(visual_service, prompt, seed=-1, width=512, height=512,return_url=True,use_pre_llm=True,use_sr=True):
     form = {
         "req_key": "jimeng_high_aes_general_v21_L",
@@ -438,20 +438,30 @@ def omni_human(visual_service,image_url,audio_url):
             return resp_data.get('video_url')
         time.sleep(5)
 
+# 视频生成 - 视频特效
+def template_2_video(visual_service, image_input, template_id):
+    form = {
+        "req_key": "i2v_bytedance_effects_v1",
+        "image_url": image_input,
+        "template_id": template_id
+    }
 
+    resp = visual_service.cv_submit_task(form)
+    if resp['code'] != 10000:
+        print(resp.get('message', 'Unknown error'))
+        return None
 
-if __name__ == "__main__":
-
-    ak = os.environ.get("VOLC_ACCESSKEY", "AKLTYjRjNTE2ZjkwMTIyNGZmMTlmMjczNGJmZWYwYWIwOGY")
-    sk = os.environ.get("VOLC_SECRETKEY", "TXpSalpXUm1OREl4WldJNE5HSXlNbUpqWTJRNFpETmlNRGcyTVdFellUYw==")
-    visual_service = VisualService()
-    visual_service.set_ak(ak)
-    visual_service.set_sk(sk)
-    image_url = "https://qwer123.tos-cn-beijing.volces.com/omnihuman-image.jpg"
-    # image_url = "https://qwer123.tos-cn-beijing.volces.com/omnihuman-fotor.jpg"
-    audio_url = "https://qwer123.tos-cn-beijing.volces.com/audio-002.m4a"
-
-    check_result = omni_human_pre_test(visual_service,image_url)
-    print(f"pre check result : {check_result}")
-    url = omni_human(visual_service,image_url,audio_url)
-    print(url)
+    task_id = resp['data']['task_id']
+    while True:
+        result = visual_service.cv_get_result({
+            "req_key": "i2v_bytedance_effects_v1",
+            "task_id": task_id
+        })
+        print(f"{result} \n")
+        if result['code'] != 10000:
+            print(result.get('message', 'Unknown error'))
+            return None
+        if result.get('data', {}).get('status') == "done":
+            resp_data = json.loads(result.get('data').get('resp_data'))
+            return resp_data.get('video_url')
+        time.sleep(5)

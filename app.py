@@ -1,7 +1,12 @@
 import base64
 import os
+import tos
+import json
+from tos import GranteeType, CannedType, PermissionType
+from tos.models2 import Grantee, Grant, Owner
+import time
 import streamlit as st
-from generation_image_sdk import t2i_30, i2i_30_portrait, i2i_seed_edit_30, t2v_seedance, i2v_seedance, i2i_30_single_ip, ark_t2i, ark_i2i, t2i_jimeng, i2i_jimeng_v30, t2v_jimeng_s20_pro, i2v_jimeng_s20_pro, omni_human_pre_test, omni_human, i21_multi_style
+from generation_image_sdk import t2i_30, i2i_30_portrait, i2i_seed_edit_30, t2v_seedance, i2v_seedance, i2i_30_single_ip, ark_t2i, ark_i2i, t2i_jimeng, i2i_jimeng_v30, t2v_jimeng_s20_pro, i2v_jimeng_s20_pro, omni_human_pre_test, omni_human, i21_multi_style, template_2_video
 from generation_music import generation_bgm
 from volcengine.visual.VisualService import VisualService
 from volcenginesdkarkruntime import Ark
@@ -12,6 +17,27 @@ from dotenv import load_dotenv
 load_dotenv()
 
 st.set_page_config(page_title="Volcengine MultiModal Lab", page_icon="🎨", layout="wide")
+
+def upload_to_tos(object_key, content, bucket_name=None):
+    ak = os.environ.get("VOLC_ACCESSKEY", "")
+    sk = os.environ.get("VOLC_SECRETKEY", "")
+    region = os.environ.get("region", "cn-beijing")
+    bucket_name = os.environ.get("TOS_BUCKET_NAME", "default-bucket")
+    endpoint = f"tos-{region}.volces.com"
+    try:
+        client = tos.TosClientV2(ak, sk, endpoint, region)
+        # 上传
+        result = client.put_object(bucket_name, object_key, content=content)
+
+        client.put_object_acl(bucket_name, object_key, acl=tos.ACLType.ACL_Public_Read)
+        
+        url = f"https://{bucket_name}.{endpoint}/{object_key}"
+        print(f"Successfully uploaded to TOS {url}")
+        return url
+    except Exception as e:
+        print('upload file to tos fail with error: {}'.format(e))
+        return None
+
 
 @st.cache_resource
 def set_auth():
@@ -94,7 +120,7 @@ st.markdown("""
 
 /* 菜单分组样式 */
 .menu-group {
-    margin: 20px 0 10px 0;
+    margin: 10px 0 10px 0;
     padding: 0 16px;
     font-size: 12px;
     font-weight: 600;
@@ -130,8 +156,8 @@ st.sidebar.markdown('<div class="sidebar-title">功能菜单</div>', unsafe_allo
 if 'selected_function' not in st.session_state:
     st.session_state.selected_function = "通用3.0-文生图"
 
-# 菜单选项
-menu_options = [
+# 图像生成菜单
+image_generation_menu = [
     "通用3.0-文生图",
     "图生图3.0-人像写真", 
     "图生图3.0-指令编辑",
@@ -139,12 +165,23 @@ menu_options = [
     "智能绘图 - 图像特效",
     "方舟-文生图3.0",
     "方舟-图像编辑3.0",
-    "既梦AI-图像生成",
-    "既梦AI-图生图3.0",
+    "既梦AI-文生图2.1",
+    "既梦AI-文生图3.0",
+    "既梦AI-文生图3.1",
+    "既梦AI-图生图3.0"
+]
+
+# 视频生成菜单
+video_generation_menu = [
     "文生视频",
     "图生视频",
     "既梦AI-文生视频",
     "既梦AI-图生视频",
+    "视频生成-视频特效",
+]
+
+# 其他
+others_menu = [
     "TTS",
     "音乐生成",
     "数字人(Omni_Human)"
@@ -154,9 +191,9 @@ menu_options = [
 st.sidebar.markdown('<div class="menu-group">图片生成</div>', unsafe_allow_html=True)
 
 # 图片生成菜单
-for i in range(9):
-    if st.sidebar.button(menu_options[i], key=f"menu_{i}"):
-        st.session_state.selected_function = menu_options[i]
+for im in image_generation_menu:
+    if st.sidebar.button(im, key=f"menu_{im}"):
+        st.session_state.selected_function = im
         st.rerun()
 
 # 分割线
@@ -165,18 +202,18 @@ st.sidebar.markdown('<hr class="menu-divider">', unsafe_allow_html=True)
 st.sidebar.markdown('<div class="menu-group">视频生成</div>', unsafe_allow_html=True)
 
 # 视频生成菜单
-for i in range(9, 13):
-    if st.sidebar.button(menu_options[i], key=f"menu_{i}"):
-        st.session_state.selected_function = menu_options[i]
+for vm in video_generation_menu:
+    if st.sidebar.button(vm, key=f"menu_{vm}"):
+        st.session_state.selected_function = vm
         st.rerun()
 # 分割线
 st.sidebar.markdown('<hr class="menu-divider">', unsafe_allow_html=True)
 # 其他生成分组
 st.sidebar.markdown('<div class="menu-group">其他</div>', unsafe_allow_html=True)
 # 其他生成菜单
-for i in range(13, 16):
-    if st.sidebar.button(menu_options[i], key=f"menu_{i}"):
-        st.session_state.selected_function = menu_options[i]
+for om in others_menu:
+    if st.sidebar.button(om, key=f"menu_{om}"):
+        st.session_state.selected_function = om
         st.rerun()
 # 分割线
 st.sidebar.markdown('<hr class="menu-divider">', unsafe_allow_html=True)
@@ -647,7 +684,7 @@ elif selected_function == "方舟-文生图3.0":
                 except Exception as e:
                     st.error(f"生成图片时出错: {str(e)}")
 
-elif selected_function == "既梦AI-图像生成":
+elif selected_function == "既梦AI-文生图2.1":
     st.header("既梦AI 图像生成")
     st.markdown("""
     产品优势
@@ -1369,6 +1406,292 @@ elif selected_function == "图生视频":
                     except Exception as e:
                         st.error(f"生成视频时出错: {str(e)}")
 
+elif selected_function == "视频生成-视频特效":
+    st.header("🎬 视频生成-视频特效")
+    st.markdown("接口文档: https://www.volcengine.com/docs/85128/1783766")
+    st.markdown("💡 基于字节自研的图像及视频处理技术和先进算法模型，支持基于用户上传的图片，稳定生成高质量、的创意特效视频。此能力亮点在于整合了多种自研图像和视频技术能力与先进模型，生成视频附带适配的背景音乐和音效，兼具创意性和视觉表现力，可广泛应用于互动娱乐和写真特效等场景。")
+    
+    # 定义模板选项，包含中文显示名称、英文模板ID和默认URL
+    template_options = {
+        "变身玩偶_480p版": {
+            "id": "becoming_doll",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/857ff5c6-2f16-495b-bd8e-65ccbe38a29b.png"
+        },
+        "变身玩偶_720p版": {
+            "id": "becoming_doll_720p", 
+            "url": "https://qwer123.tos-cn-beijing.volces.com/857ff5c6-2f16-495b-bd8e-65ccbe38a29b.png"
+        },
+        "召唤坐骑-猪_480p版": {
+            "id": "all_things_ridability_pig",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/b50a89c7-8c46-486d-b3ef-95f682e12192.png"
+        },
+        "召唤坐骑-猪_720p版": {
+            "id": "all_things_ridability_pig_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/b50a89c7-8c46-486d-b3ef-95f682e12192.png"
+        },
+        "召唤坐骑-老虎_480p版": {
+            "id": "all_things_ridability_tiger",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/faeb2464-b830-44c9-86dd-e0a65ca4e911.png"
+        },
+        "召唤坐骑-老虎_720p版": {
+            "id": "all_things_ridability_tiger_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/faeb2464-b830-44c9-86dd-e0a65ca4e911.png"
+        },
+        "召唤坐骑-龙_480p版": {
+            "id": "all_things_ridability_loong",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/fc4d15dd-7ab6-42df-be21-d40b6cde3703.png"
+        },
+        "召唤坐骑-龙_720p版": {
+            "id": "all_things_ridability_loong_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/fc4d15dd-7ab6-42df-be21-d40b6cde3703.png"
+        },
+        "万物生花_480p版": {
+            "id": "all_things_bloom_with_flowers",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/0e7aed08-267e-4272-82af-50c5e8e14a23.png"
+        },
+        "万物生花_720p版": {
+            "id": "all_things_bloom_with_flowers_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/0e7aed08-267e-4272-82af-50c5e8e14a23.png"
+        },
+        "爱的拥抱（单图）_480p版": {
+            "id": "double_embrace_single_person",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/9459a381-3bbe-4e57-a154-c9c71bd395c2.png"
+        },
+        "爱的拥抱（单图）_720p版": {
+            "id": "double_embrace_single_person_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/9459a381-3bbe-4e57-a154-c9c71bd395c2.png"
+        },
+        "爱的拥抱（双图）_480p版": {
+            "id": "double_embrace",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/9781c1f7-cd79-4daf-a027-6bd2b3775c8c.png|https://qwer123.tos-cn-beijing.volces.com/9459a381-3bbe-4e57-a154-c9c71bd395c2.png"
+        },
+        "爱的拥抱（双图）_720p版": {
+            "id": "double_embrace_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/9781c1f7-cd79-4daf-a027-6bd2b3775c8c.png|https://qwer123.tos-cn-beijing.volces.com/9459a381-3bbe-4e57-a154-c9c71bd395c2.png"
+        },
+        "AI美女环绕_480p版": {
+            "id": "beauty_surround",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/b50a89c7-8c46-486d-b3ef-95f682e12192.png"
+        },
+        "AI美女环绕_720p版": {
+            "id": "beauty_surround_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/b50a89c7-8c46-486d-b3ef-95f682e12192.png"
+        },
+        "AI帅哥环绕_480p版": {
+            "id": "handsome_man_surround",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/68c1b962-49ce-45d2-a367-6676a66f6c18.png"
+        },
+        "AI帅哥环绕_720p版": {
+            "id": "handsome_man_surround_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/68c1b962-49ce-45d2-a367-6676a66f6c18.png"
+        },
+        "天赐宝宝_480p版": {
+            "id": "ai_baby",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/b50a89c7-8c46-486d-b3ef-95f682e12192.png"
+        },
+        "天赐宝宝_720p版": {
+            "id": "ai_baby_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/b50a89c7-8c46-486d-b3ef-95f682e12192.png"
+        },
+        "清凉泳装变身_480p版": {
+            "id": "put_on_bikini",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/857ff5c6-2f16-495b-bd8e-65ccbe38a29b.png"
+        },
+        "清凉泳装变身_720p版": {
+            "id": "put_on_bikini_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/857ff5c6-2f16-495b-bd8e-65ccbe38a29b.png"
+        },
+        "变身兔女郎_480p版": {
+            "id": "put_on_bunny_girl_outfit",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/26fdf9e9-5a65-4e3e-b923-2a13f1bc9644.png"
+        },
+        "变身兔女郎_720p版": {
+            "id": "put_on_bunny_girl_outfit_720p",
+            "url": "https://qwer123.tos-cn-beijing.volces.com/26fdf9e9-5a65-4e3e-b923-2a13f1bc9644.png"
+        }
+    }
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("输入参数")
+        
+        # 模板选择下拉框
+        selected_template_display = st.selectbox(
+            "选择视频特效模板",
+            options=list(template_options.keys()),
+            key="template_selector_video",
+            help="选择要应用的视频特效模板"
+        )
+        
+        # 获取对应的模板ID和默认URL
+        selected_template_info = template_options[selected_template_display]
+        selected_template_id = selected_template_info["id"]
+        default_url = selected_template_info["url"]
+        
+        # 图片输入方式
+        input_method_video = st.radio("选择图片来源", ("使用模板默认图片", "自定义URL", "上传图片"), key="input_method_video")
+        image_input_video = None
+        uploaded_file_video = None
+
+        if input_method_video == "使用模板默认图片":
+            image_input_video = default_url
+            st.text_input(
+                "模板默认图片URL:", 
+                value=default_url,
+                disabled=True,
+                key="default_url_display_video"
+            )
+        elif input_method_video == "自定义URL":
+            image_input_video = st.text_input(
+                "输入图片 URL:", 
+                value=default_url,
+                key="image_url_video"
+            )
+        else:
+            uploaded_file_video = st.file_uploader(
+                "上传图片", 
+                type=["png", "jpg", "jpeg"], 
+                key="file_uploader_video"
+            )
+        
+        # 特殊处理：爱的拥抱（双图）模板
+        is_double_embrace = "double_embrace" in selected_template_id and "single" not in selected_template_id
+        
+        if is_double_embrace:
+            st.info("💡 此模板需要两张图片，请使用'|'分隔两个图片URL")
+            if input_method_video == "自定义URL":
+                st.markdown("**示例格式:** `https://image1.jpg|https://image2.jpg`")
+        
+        # 生成按钮
+        generate_button_video = st.button("🎬 生成视频特效", key="button_video", type="primary")
+    
+    with col2:
+        st.subheader("图片预览和生成结果")
+        
+        # 预览区域
+        preview_col, result_col = st.columns(2)
+        
+        with preview_col:
+            st.write("**原图预览**")
+            preview_image_video = None
+            
+            if input_method_video == "使用模板默认图片" or input_method_video == "自定义URL":
+                if image_input_video:
+                    # 处理双图情况
+                    if is_double_embrace and "|" in image_input_video:
+                        image_urls = image_input_video.split("|")
+                        st.write("**图片1:**")
+                        st.image(image_urls[0], caption="第一张图片", use_container_width=True)
+                        if len(image_urls) > 1:
+                            st.write("**图片2:**")
+                            st.image(image_urls[1], caption="第二张图片", use_container_width=True)
+                    else:
+                        st.image(image_input_video, caption="原图", use_container_width=True)
+            elif input_method_video == "上传图片" and uploaded_file_video is not None:
+                st.image(uploaded_file_video, caption="上传的图片", use_container_width=True)
+            else:
+                st.info("请选择或上传图片")
+        
+        with result_col:
+            st.write("**视频特效结果**")
+            if generate_button_video:
+                # 验证输入
+                final_image_input = None
+                
+                if input_method_video == "使用模板默认图片" or input_method_video == "自定义URL":
+                    final_image_input = image_input_video
+                elif input_method_video == "上传图片" and uploaded_file_video is not None:
+                    # 对于上传的图片，需要先上传到云存储获取URL
+                    object_key = f"uploads/video_effects_{int(time.time())}_{uploaded_file_video.name}"
+                    upload_url = upload_to_tos(object_key, uploaded_file_video.getvalue())
+                    if upload_url:
+                        final_image_input = upload_url
+                        st.success(f"✅ 图片已上传: {object_key}")
+                    else:
+                        st.error("❌ 图片上传失败，请稍后重试")
+                        final_image_input = None
+                
+                if not final_image_input:
+                    st.error("❌ 请先选择或上传图片！")
+                else:
+                    # 验证双图模板的输入格式
+                    if is_double_embrace and "|" not in final_image_input:
+                        st.error("❌ 爱的拥抱（双图）模板需要两张图片，请使用'|'分隔两个图片URL")
+                    else:
+                        with st.spinner("🎬 正在生成视频特效，请耐心等待..."):
+                            try:
+                                video_url = template_2_video(
+                                    visual_service,
+                                    image_input=final_image_input,
+                                    template_id=selected_template_id
+                                )
+                                
+                                if video_url:
+                                    st.success("✅ 视频特效生成成功！")
+                                    
+                                    # 显示生成的视频
+                                    try:
+                                        st.video(video_url)
+                                        st.success("✅ 视频加载成功！")
+                                        
+                                        # 提供下载链接
+                                        st.markdown("---")
+                                        st.subheader("📥 下载选项")
+                                        st.markdown(f"🔗 [点击下载视频]({video_url})")
+                                        st.info("💡 **提示:** 右键点击上方链接，选择'另存为'可将视频文件保存到本地。")
+                                        
+                                        # 显示特效信息
+                                        st.info(f"🎬 **应用特效:** {selected_template_display}")
+                                        
+                                    except Exception as e:
+                                        st.warning(f"⚠️ 视频预览失败: {str(e)}")
+                                        st.markdown(f"🔗 [点击下载视频]({video_url})")
+                                        
+                                else:
+                                    st.error("❌ 视频特效生成失败，请检查参数或稍后重试")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ 生成视频特效时出错: {str(e)}")
+                                st.info("💡 请检查网络连接和API配置，或稍后重试")
+        
+        # 特效说明
+        with st.expander("🎬 视频特效模板说明", expanded=False):
+            st.markdown("""
+            **可用视频特效模板：**
+            
+            🎭 **变身类特效**
+            - **变身玩偶**: 将人物转换为可爱的玩偶形象
+            - **清凉泳装变身**: 换装为泳装造型
+            - **变身兔女郎**: 换装为兔女郎造型
+            
+            🐾 **召唤坐骑系列**  
+            - **召唤坐骑-猪**: 召唤可爱的猪坐骑
+            - **召唤坐骑-老虎**: 召唤威武的老虎坐骑
+            - **召唤坐骑-龙**: 召唤神秘的龙坐骑
+            
+            🌸 **特殊效果**
+            - **万物生花**: 周围绽放美丽花朵的特效
+            - **爱的拥抱**: 温馨的拥抱场景（支持单图和双图）
+            
+            👥 **环绕特效**
+            - **AI美女环绕**: 被美女环绕的特效
+            - **AI帅哥环绕**: 被帅哥环绕的特效
+            
+            👶 **其他特效**
+            - **天赐宝宝**: 生成可爱宝宝的特效
+            
+            **分辨率选择：**
+            - **480p版本**: 标准清晰度，生成速度较快
+            - **720p版本**: 高清版本，画质更佳但生成时间较长
+            
+            **使用提示：**
+            - 建议使用清晰、主体明确的人物图片
+            - 爱的拥抱（双图）模板需要两张图片，用'|'分隔URL
+            - 不同模板适合不同类型的图片内容
+            - 生成时间可能需要几分钟，请耐心等待
+            """)
+
 elif selected_function == "音乐生成":
     st.header("🎵 音乐生成")
     st.markdown("使用火山引擎音乐生成API创建背景音乐")
@@ -1644,7 +1967,7 @@ elif selected_function == "TTS":
 
 elif selected_function == "数字人(Omni_Human)":
     st.header("👤 数字人(Omni_Human)")
-    st.markdown("接口文档: https://www.volcengine.com/docs/85128/1602254")
+    st.markdown("接口文档: https://www.volcengine.com/docs/85128/1580768")
     st.markdown("💡 数字人功能可以根据输入的图片和音频生成数字人视频")
     
     col1, col2 = st.columns(2)
@@ -1715,7 +2038,16 @@ elif selected_function == "数字人(Omni_Human)":
             if input_method_omni == "URL" and image_url_omni:
                 preview_image_omni = image_url_omni
             elif input_method_omni == "上传图片" and uploaded_file_omni is not None:
-                preview_image_omni = uploaded_file_omni
+                # Generate unique object key for the uploaded file 
+                object_key = f"uploads/omni_human_{int(time.time())}_{uploaded_file_omni.name}"
+                # Upload file to TOS
+                upload_url = upload_to_tos(object_key, uploaded_file_omni.getvalue())
+                if upload_result:
+                    st.success(f"✅ 文件已成功上传到TOS: {object_key}")
+                else:
+                    st.warning("⚠️ 文件上传到TOS失败，但仍可继续使用")
+                
+                preview_image_omni = upload_url
             
             if preview_image_omni is not None:
                 st.image(preview_image_omni, caption="人物图片", use_container_width=True)
@@ -1731,7 +2063,15 @@ elif selected_function == "数字人(Omni_Human)":
                 except Exception as e:
                     st.warning(f"⚠️ 无法预览音频: {str(e)}")
             elif audio_input_method == "上传音频" and uploaded_audio_omni is not None:
-                st.audio(uploaded_audio_omni.getvalue())
+                object_key = f"uploads/omni_human_{int(time.time())}_{uploaded_audio_omni.name}"
+                # Upload file to TOS
+                upload_url = upload_to_tos(object_key, uploaded_audio_omni.getvalue())
+                if upload_result:
+                    st.success(f"✅ 文件已成功上传到TOS: {object_key}")
+                else:
+                    st.warning("⚠️ 文件上传到TOS失败，但仍可继续使用")
+
+                st.audio(upload_url)
                 st.success("✅ 音频文件已上传")
             else:
                 st.info("请上传或输入音频文件")
@@ -1802,43 +2142,88 @@ elif selected_function == "数字人(Omni_Human)":
                                 st.subheader("🎬 生成的数字人视频")
                                 
                                 try:
-                                    # 尝试直接显示视频
-                                    st.video(video_url)
+                                    # 下载视频到本地临时文件
+                                    import requests
+                                    import tempfile
+                                    import os
+                                    
+                                    with st.spinner("📥 正在下载视频文件..."):
+                                        # 创建临时文件
+                                        temp_dir = tempfile.gettempdir()
+                                        temp_video_path = os.path.join(temp_dir, f"digital_human_video_{int(time.time())}.mp4")
+                                        
+                                        # 下载视频
+                                        response = requests.get(video_url, stream=True, timeout=60)
+                                        response.raise_for_status()
+                                        
+                                        with open(temp_video_path, 'wb') as f:
+                                            for chunk in response.iter_content(chunk_size=8192):
+                                                if chunk:
+                                                    f.write(chunk)
+                                    
+                                    # 使用本地文件显示视频
+                                    st.video(temp_video_path)
                                     st.success("✅ 视频加载成功！")
                                     
-                                    # 提供下载链接
+                                    # 提供下载功能
                                     st.markdown("---")
                                     st.subheader("📥 下载选项")
-                                    st.markdown(f"🔗 [点击下载数字人视频]({video_url})")
-                                    st.info("💡 **提示:** 右键点击上方链接，选择'另存为'可将视频文件保存到本地。")
+                                    
+                                    # 读取视频文件用于下载
+                                    with open(temp_video_path, 'rb') as video_file:
+                                        video_bytes = video_file.read()
+                                        st.download_button(
+                                            label="📥 下载数字人视频",
+                                            data=video_bytes,
+                                            file_name=f"digital_human_video_{int(time.time())}.mp4",
+                                            mime="video/mp4"
+                                        )
+                                    
+                                    st.info("💡 **提示:** 点击上方按钮可将视频文件下载到本地。")
                                     
                                     # 显示视频信息
                                     with st.expander("🔍 视频信息", expanded=False):
-                                        st.code(f"视频URL: {video_url}")
+                                        st.code(f"原始视频URL: {video_url}")
+                                        st.code(f"本地临时文件: {temp_video_path}")
                                         try:
-                                            import requests
-                                            response_info = requests.head(video_url, timeout=10)
-                                            st.write(f"**HTTP状态码:** {response_info.status_code}")
-                                            content_type = response_info.headers.get('content-type', 'unknown')
-                                            st.write(f"**Content-Type:** {content_type}")
-                                            content_length = response_info.headers.get('content-length')
-                                            if content_length:
-                                                st.write(f"**文件大小:** {int(content_length)/(1024*1024):.1f} MB")
+                                            file_size = os.path.getsize(temp_video_path)
+                                            st.write(f"**文件大小:** {file_size/(1024*1024):.1f} MB")
+                                            st.write(f"**文件格式:** MP4")
                                         except Exception as e:
                                             st.write(f"**无法获取视频详细信息:** {str(e)}")
                                     
-                                except Exception as e:
-                                    st.warning(f"⚠️ 视频预览失败: {str(e)}")
-                                    st.write("**可能的原因:**")
-                                    st.write("- 视频文件格式不支持在线预览")
-                                    st.write("- 网络连接问题")
-                                    st.write("- 视频文件较大，加载时间较长")
+                                    # 清理临时文件（可选，系统会自动清理）
+                                    try:
+                                        # 延迟删除，让用户有时间查看
+                                        import threading
+                                        def cleanup_temp_file():
+                                            import time
+                                            time.sleep(300)  # 5分钟后删除
+                                            try:
+                                                if os.path.exists(temp_video_path):
+                                                    os.remove(temp_video_path)
+                                            except:
+                                                pass
+                                        
+                                        cleanup_thread = threading.Thread(target=cleanup_temp_file)
+                                        cleanup_thread.daemon = True
+                                        cleanup_thread.start()
+                                    except:
+                                        pass
                                     
-                                    # 仍然提供下载链接
+                                except Exception as e:
+                                    st.warning(f"⚠️ 视频下载或预览失败: {str(e)}")
+                                    st.write("**可能的原因:**")
+                                    st.write("- 签名URL已过期")
+                                    st.write("- 网络连接问题")
+                                    st.write("- 视频文件较大，下载超时")
+                                    st.write("- 磁盘空间不足")
+                                    
+                                    # 仍然提供原始下载链接作为备选
                                     st.markdown("---")
-                                    st.subheader("📥 下载选项")
+                                    st.subheader("📥 备选下载方式")
                                     st.markdown(f"🔗 [点击下载数字人视频]({video_url})")
-                                    st.info("💡 **提示:** 请直接点击下载链接获取视频文件。")
+                                    st.info("💡 **提示:** 如果上述方法失败，请尝试右键点击链接另存为。")
                                 
                             else:
                                 st.error("❌ 数字人视频生成失败，请检查参数或稍后重试")

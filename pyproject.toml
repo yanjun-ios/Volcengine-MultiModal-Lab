@@ -8,6 +8,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "sign>=0.0.2",
     "streamlit>=1.47.1",
+    "tos>=2.8.4",
     "volcengine>=1.0.194",
     "volcengine-python-sdk[ark]>=4.0.7",
 ]
