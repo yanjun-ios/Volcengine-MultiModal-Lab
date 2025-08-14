@@ -440,20 +440,21 @@ def omni_human(visual_service,image_url,audio_url):
 
 # 视频生成 - 视频特效
 def template_2_video(visual_service, image_input, template_id):
+    print(f"image_input:{image_input}, template_id:{template_id}")
     form = {
         "req_key": "i2v_bytedance_effects_v1",
-        "image_url": image_input,
+        "image_input": image_input,
         "template_id": template_id
     }
 
-    resp = visual_service.cv_submit_task(form)
+    resp = visual_service.cv_sync2async_submit_task(form)
     if resp['code'] != 10000:
         print(resp.get('message', 'Unknown error'))
         return None
 
     task_id = resp['data']['task_id']
     while True:
-        result = visual_service.cv_get_result({
+        result = visual_service.cv_sync2async_get_result({
             "req_key": "i2v_bytedance_effects_v1",
             "task_id": task_id
         })

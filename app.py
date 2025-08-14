@@ -12,6 +12,8 @@ from volcengine.visual.VisualService import VisualService
 from volcenginesdkarkruntime import Ark
 from llm_prompt_optmize import optimize_stream
 from dotenv import load_dotenv
+import requests
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -21,7 +23,7 @@ st.set_page_config(page_title="Volcengine MultiModal Lab", page_icon="🎨", lay
 def upload_to_tos(object_key, content, bucket_name=None):
     ak = os.environ.get("VOLC_ACCESSKEY", "")
     sk = os.environ.get("VOLC_SECRETKEY", "")
-    region = os.environ.get("region", "cn-beijing")
+    region = os.environ.get("REGION", "cn-beijing")
     bucket_name = os.environ.get("TOS_BUCKET_NAME", "default-bucket")
     endpoint = f"tos-{region}.volces.com"
     try:
@@ -1479,11 +1481,11 @@ elif selected_function == "视频生成-视频特效":
         },
         "AI帅哥环绕_480p版": {
             "id": "handsome_man_surround",
-            "url": "https://qwer123.tos-cn-beijing.volces.com/68c1b962-49ce-45d2-a367-6676a66f6c18.png"
+            "url": "https://qwer123.tos-cn-beijing.volces.com/68c1b962-49ce-45d2-a367-6676a66f6c18.jpeg"
         },
         "AI帅哥环绕_720p版": {
             "id": "handsome_man_surround_720p",
-            "url": "https://qwer123.tos-cn-beijing.volces.com/68c1b962-49ce-45d2-a367-6676a66f6c18.png"
+            "url": "https://qwer123.tos-cn-beijing.volces.com/68c1b962-49ce-45d2-a367-6676a66f6c18.jpeg"
         },
         "天赐宝宝_480p版": {
             "id": "ai_baby",
@@ -1528,11 +1530,15 @@ elif selected_function == "视频生成-视频特效":
         selected_template_info = template_options[selected_template_display]
         selected_template_id = selected_template_info["id"]
         default_url = selected_template_info["url"]
+
+        # 特殊处理：爱的拥抱（双图）模板
+        is_double_embrace = "double_embrace" in selected_template_id and "single" not in selected_template_id
         
         # 图片输入方式
         input_method_video = st.radio("选择图片来源", ("使用模板默认图片", "自定义URL", "上传图片"), key="input_method_video")
         image_input_video = None
         uploaded_file_video = None
+        uploaded_file_video2 = None
 
         if input_method_video == "使用模板默认图片":
             image_input_video = default_url
@@ -1548,20 +1554,20 @@ elif selected_function == "视频生成-视频特效":
                 value=default_url,
                 key="image_url_video"
             )
+            if is_double_embrace:
+                st.info("💡 此模板需要两张图片，请使用'|'分隔两个图片URL")
         else:
             uploaded_file_video = st.file_uploader(
                 "上传图片", 
                 type=["png", "jpg", "jpeg"], 
                 key="file_uploader_video"
             )
-        
-        # 特殊处理：爱的拥抱（双图）模板
-        is_double_embrace = "double_embrace" in selected_template_id and "single" not in selected_template_id
-        
-        if is_double_embrace:
-            st.info("💡 此模板需要两张图片，请使用'|'分隔两个图片URL")
-            if input_method_video == "自定义URL":
-                st.markdown("**示例格式:** `https://image1.jpg|https://image2.jpg`")
+            if is_double_embrace:
+                uploaded_file_video2 = st.file_uploader(
+                "上传图片2", 
+                type=["png", "jpg", "jpeg"], 
+                key="file_uploader_video2"
+            )
         
         # 生成按钮
         generate_button_video = st.button("🎬 生成视频特效", key="button_video", type="primary")
@@ -1590,6 +1596,8 @@ elif selected_function == "视频生成-视频特效":
                         st.image(image_input_video, caption="原图", use_container_width=True)
             elif input_method_video == "上传图片" and uploaded_file_video is not None:
                 st.image(uploaded_file_video, caption="上传的图片", use_container_width=True)
+                if uploaded_file_video2 is not None:
+                    st.image(uploaded_file_video2, caption="第二张图片", use_container_width=True)
             else:
                 st.info("请选择或上传图片")
         
@@ -1605,6 +1613,9 @@ elif selected_function == "视频生成-视频特效":
                     # 对于上传的图片，需要先上传到云存储获取URL
                     object_key = f"uploads/video_effects_{int(time.time())}_{uploaded_file_video.name}"
                     upload_url = upload_to_tos(object_key, uploaded_file_video.getvalue())
+                    if uploaded_file_video2 is not None:
+                        object_key = f"uploads/video_effects_{int(time.time())}_{uploaded_file_video2.name}"
+                        upload_url = upload_url+"|"+upload_to_tos(object_key, uploaded_file_video2.getvalue())
                     if upload_url:
                         final_image_input = upload_url
                         st.success(f"✅ 图片已上传: {object_key}")
@@ -1632,7 +1643,23 @@ elif selected_function == "视频生成-视频特效":
                                     
                                     # 显示生成的视频
                                     try:
-                                        st.video(video_url)
+                                        with st.spinner("📥 正在下载视频文件..."):
+                                            # 创建临时文件
+                                            temp_dir = tempfile.gettempdir()
+                                            temp_video_path = os.path.join(temp_dir, f"template_video_{int(time.time())}.mp4")
+                                            
+                                            # 下载视频
+                                            response = requests.get(video_url, stream=True, timeout=60)
+                                            response.raise_for_status()
+                                            
+                                            with open(temp_video_path, 'wb') as f:
+                                                for chunk in response.iter_content(chunk_size=8192):
+                                                    if chunk:
+                                                        f.write(chunk)
+                                    
+                                        # 使用本地文件显示视频
+                                        st.video(temp_video_path)
+                                        # st.video(video_url)
                                         st.success("✅ 视频加载成功！")
                                         
                                         # 提供下载链接
@@ -1878,10 +1905,6 @@ elif selected_function == "音乐生成":
                                 
                                 try:
                                     with st.spinner("🔄 正在下载音频文件..."):
-                                        import requests
-                                        import tempfile
-                                        import os
-                                        
                                         # 下载音频文件
                                         response = requests.get(audio_url, timeout=30)
                                         response.raise_for_status()
