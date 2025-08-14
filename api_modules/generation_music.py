@@ -1,7 +1,7 @@
 import json
 import time
 import requests
-import Sign
+from utils import sign as Sign
 
 STATUS_CODE_SUCCESS = 0
 QUERY_STATUS_CODE_WAITING = 0
