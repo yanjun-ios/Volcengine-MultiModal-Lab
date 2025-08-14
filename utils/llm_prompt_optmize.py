@@ -11,9 +11,9 @@ def optimize_stream(client,type="i2v", user_prompt="", user_image=""):
     system_prompt = ""
     prompt_file=""
     if type == 'i2v':
-        prompt_file = "i2v_prompt_guaidance.md"
+        prompt_file = "utils/i2v_prompt_guaidance.md"
     elif type == 't2v':
-        prompt_file = "t2v_prompt_guaidance.md"
+        prompt_file = "utils/t2v_prompt_guaidance.md"
     try:
         with open(prompt_file, 'r', encoding='utf-8') as f:
             system_prompt = f.read()
