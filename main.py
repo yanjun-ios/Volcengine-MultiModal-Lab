@@ -14,14 +14,14 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         os.chdir(script_dir)
         
-        print("🚀 启动火山引擎多模态实验室 - 重构版本")
+        print("🚀 启动火山引擎多模态实验室")
         print("📁 工作目录:", script_dir)
         print("🌐 应用将在浏览器中自动打开...")
         print("-" * 50)
         
         # 启动Streamlit应用
         subprocess.run([
-            sys.executable, "-m", "streamlit", "run", "app_new.py",
+            sys.executable, "-m", "streamlit", "run", "app.py",
             "--server.headless", "false",
             "--server.port", "8501",
             "--browser.gatherUsageStats", "false"
