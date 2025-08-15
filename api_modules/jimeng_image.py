@@ -33,6 +33,66 @@ def t2i_jimeng(visual_service, prompt, seed=-1, width=512, height=512,return_url
         return resp['data']['image_urls'][0]
     return None
 
+# 既梦 AI 文生图3.0
+def t2i_jimeng_v30(visual_service, prompt, seed=-1, width=512, height=512,use_pre_llm=True):
+    form = {
+        "req_key": "jimeng_t2i_v30",
+        "prompt": prompt,
+        "seed": seed,
+        "width": width,
+        "height": height,
+        "use_pre_llm": use_pre_llm,
+        
+    }
+    resp = visual_service.cv_sync2async_submit_task(form)
+    if resp['code'] != 10000:
+        print(resp.get('message', 'Unknown error'))
+        return None
+
+    task_id = resp['data']['task_id']
+    while True:
+        result = visual_service.cv_sync2async_get_result({
+            "req_key": "jimeng_t2i_v30",
+            "task_id": task_id,
+            "req_json": "{\"logo_info\":{\"add_logo\":true,\"position\":0,\"language\":0,\"opacity\":0.3,\"logo_text_content\":\"这里是明水印内容\"},\"return_url\":true}"
+        })
+        if result['code'] != 10000:
+            print(result.get('message', 'Unknown error'))
+            return None
+        if result.get('data', {}).get('image_urls'):
+            return result.get('data', {}).get('image_urls')[0]
+        time.sleep(5)
+
+# 既梦 AI 文生图3.1
+def t2i_jimeng_v31(visual_service, prompt, seed=-1, width=512, height=512,use_pre_llm=True):
+    form = {
+        "req_key": "jimeng_t2i_v31",
+        "prompt": prompt,
+        "seed": seed,
+        "width": width,
+        "height": height,
+        "use_pre_llm": use_pre_llm,
+        
+    }
+    resp = visual_service.cv_sync2async_submit_task(form)
+    if resp['code'] != 10000:
+        print(resp.get('message', 'Unknown error'))
+        return None
+
+    task_id = resp['data']['task_id']
+    while True:
+        result = visual_service.cv_sync2async_get_result({
+            "req_key": "jimeng_t2i_v31",
+            "task_id": task_id,
+            "req_json": "{\"logo_info\":{\"add_logo\":true,\"position\":0,\"language\":0,\"opacity\":0.3,\"logo_text_content\":\"这里是明水印内容\"},\"return_url\":true}"
+        })
+        if result['code'] != 10000:
+            print(result.get('message', 'Unknown error'))
+            return None
+        if result.get('data', {}).get('image_urls'):
+            return result.get('data', {}).get('image_urls')[0]
+        time.sleep(5)
+
 # 既梦 AI 图生图 3.0
 def i2i_jimeng_v30(visual_service, prompt, seed=-1,width=1328, height=1328, scale=0.5, image_url=None, image_base64=None):
     if not image_url and not image_base64:

@@ -13,7 +13,7 @@ def render_jimeng_t2i_21(visual_service):
 **质感**：人物皮肤磨皮感及油腻感减弱，人像、动物及材质类类纹理质感表现更加真实细腻; 
 **细节丰富度**：简化了过于繁琐的画面元素，画面整体表现现更加具有层次感、秩序感; 
     """)
-    st.markdown("接口文档: https://www.volcengine.com/docs/85128/125990")
+    st.markdown("接口文档: https://www.volcengine.com/docs/85621/1537648")
     
     col1, col2 = st.columns(2)
     

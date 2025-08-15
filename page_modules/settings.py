@@ -2,6 +2,10 @@ import streamlit as st
 import os
 
 def render_settings():
+     st.header("⚙️ 系统设置")
+     st.markdown("在这里配置系统设置")
+
+def render_settings_bak():
     """设置页面"""
     st.header("⚙️ 系统设置")
     st.markdown("在这里配置您的API密钥和其他系统设置")

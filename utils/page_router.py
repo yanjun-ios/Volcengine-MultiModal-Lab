@@ -7,6 +7,8 @@ from page_modules.image_effects import render_image_effects
 from page_modules.ark_t2i import render_ark_t2i
 from page_modules.ark_i2i import render_ark_i2i
 from page_modules.jimeng_t2i import render_jimeng_t2i_21
+from page_modules.jimeng_t2i_v30 import render_jimeng_t2i_v30
+from page_modules.jimeng_t2i_v31 import render_jimeng_t2i_v31
 from page_modules.jimeng_i2i import render_jimeng_i2i_30
 from page_modules.t2v_seedance import render_t2v_seedance
 from page_modules.music_generation import render_music_generation
@@ -50,10 +52,10 @@ def route_page(selected_function, visual_service, ark_client):
         render_jimeng_t2i_21(visual_service)
         
     elif selected_function == "既梦AI-文生图3.0":
-        render_jimeng_t2i_21(visual_service)  # 使用同一个函数
+        render_jimeng_t2i_v30(visual_service)  # 使用同一个函数
         
     elif selected_function == "既梦AI-文生图3.1":
-        render_jimeng_t2i_21(visual_service)  # 使用同一个函数
+        render_jimeng_t2i_v31(visual_service)  # 使用同一个函数
         
     elif selected_function == "既梦AI-图生图3.0":
         render_jimeng_i2i_30(visual_service)
