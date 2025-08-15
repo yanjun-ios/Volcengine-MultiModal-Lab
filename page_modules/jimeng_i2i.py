@@ -11,7 +11,7 @@ def render_jimeng_i2i_30(visual_service):
 **指令遵循能力强**： 智能解析复杂编辑指令，对用户意图理解准确。无论是局部细节调整还是全局性修改，均能实现精准响应和高效执行; 
 **专业级海报设计**：营销海报场景下的生产力利器，支持生成覆盖广泛行业需求的海报素材，在排版美感与文字设计感方面表现突出; 
     """)
-    st.markdown("接口文档: https://www.volcengine.com/docs/85128/1602254")
+    st.markdown("接口文档: https://www.volcengine.com/docs/85621/1749156")
     
     col1, col2 = st.columns(2)
 
