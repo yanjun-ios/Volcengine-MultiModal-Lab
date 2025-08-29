@@ -30,12 +30,15 @@ def t2v_seedance(ark_client, model, prompt):
             time.sleep(5)
 
 # 图生视频 [doubao-seedance-1-0-pro-250528,doubao-seedance-1-0-lite-i2v-250428]
-def i2v_seedance(ark_client, model, prompt, first_frame=None, last_frame=None):
+def i2v_seedance(ark_client, model, prompt, first_frame=None, last_frame=None,reference_frame=[]):
     content = [{"type": "text", "text": prompt}]
     if first_frame:
         content.append({"type": "image_url", "role": "first_frame", "image_url": {"url": first_frame}})
     if last_frame:
         content.append({"type": "image_url", "role": "last_frame", "image_url": {"url": last_frame}})
+    if len(reference_frame) > 0:
+        for frame in reference_frame:
+            content.append({"type": "image_url", "role": "reference_image", "image_url": {"url": frame}})
     
     resp = ark_client.content_generation.tasks.create(
         model=model,

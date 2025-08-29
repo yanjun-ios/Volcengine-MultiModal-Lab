@@ -25,20 +25,38 @@ def render_i2v_seedance(ark_client):
         # 首帧图片上传
         st.subheader("图片上传")
         first_frame_file = st.file_uploader(
-            "上传首帧图片 (必需)",
+            "上传首帧图片 (可选)",
             type=["png", "jpg", "jpeg"],
             key="first_frame_i2v"
         )
         
         # 根据模型显示尾帧上传选项
         last_frame_file = None
+        reference_frame_files = []
         if model_i2v == "doubao-seedance-1-0-lite-i2v-250428":
             last_frame_file = st.file_uploader(
                 "上传尾帧图片 (可选)",
                 type=["png", "jpg", "jpeg"],
                 key="last_frame_i2v"
             )
-            st.info("💡 Seedance 1.0 lite 模型支持首帧和尾帧，可以更精确控制视频内容")
+            
+            # 参考帧上传
+            st.subheader("参考帧图片 (可选)")
+            st.info("💡 最多可上传4张参考图片，用于更精确控制视频内容")
+            
+            reference_frame_files = st.file_uploader(
+                "上传参考帧图片 (最多4张)",
+                type=["png", "jpg", "jpeg"],
+                accept_multiple_files=True,
+                key="reference_frames_i2v"
+            )
+            
+            # 限制参考帧数量
+            if reference_frame_files and len(reference_frame_files) > 4:
+                st.warning("⚠️ 最多只能上传4张参考图片，已自动截取前4张")
+                reference_frame_files = reference_frame_files[:4]
+            
+            st.info("💡 Seedance 1.0 lite 模型支持首帧、尾帧和参考帧，可以更精确控制视频内容")
         else:
             st.info("💡 Seedance 1.0 pro 模型只支持首帧")
 
@@ -150,7 +168,7 @@ def render_i2v_seedance(ark_client):
             if first_frame_file is not None:
                 st.image(first_frame_file, caption="首帧图片")
             else:
-                st.info("请上传首帧图片")
+                st.info("可选择上传首帧图片")
         
         with preview_col2:
             st.write("**尾帧预览**")
@@ -161,57 +179,75 @@ def render_i2v_seedance(ark_client):
             else:
                 st.info("当前模型不支持尾帧")
         
+        # 参考帧预览区域
+        if model_i2v == "doubao-seedance-1-0-lite-i2v-250428" and reference_frame_files:
+            st.write("**参考帧预览**")
+            ref_cols = st.columns(min(len(reference_frame_files), 4))
+            for i, ref_file in enumerate(reference_frame_files[:4]):
+                with ref_cols[i]:
+                    st.image(ref_file, caption=f"参考帧 {i+1}")
+        
         # 生成结果区域
         st.subheader("生成结果")
         
         if generate_button_i2v:
-            if first_frame_file is None:
-                st.error("请先上传首帧图片！")
-            else:
-                with st.spinner("正在生成视频，请耐心等待..."):
-                    try:
-                        # 将图片转换为base64并上传获取URL
-                        # 这里简化处理，实际应该上传到云存储获取URL
+            with st.spinner("正在生成视频，请耐心等待..."):
+                try:
+                    # 处理首帧图片（可选）
+                    first_frame_url = None
+                    if first_frame_file is not None:
                         first_frame_base64 = base64.b64encode(first_frame_file.getvalue()).decode('utf-8')
                         # 根据文件类型设置正确的MIME类型
                         first_frame_mime = f"image/{first_frame_file.type.split('/')[-1]}" if first_frame_file.type else "image/jpeg"
                         first_frame_url = f"data:{first_frame_mime};base64,{first_frame_base64}"
-                        
-                        last_frame_url = None
-                        if last_frame_file is not None:
-                            last_frame_base64 = base64.b64encode(last_frame_file.getvalue()).decode('utf-8')
+                    
+                    # 处理尾帧图片（可选）
+                    last_frame_url = None
+                    if last_frame_file is not None:
+                        last_frame_base64 = base64.b64encode(last_frame_file.getvalue()).decode('utf-8')
+                        # 根据文件类型设置正确的MIME类型
+                        last_frame_mime = f"image/{last_frame_file.type.split('/')[-1]}" if last_frame_file.type else "image/jpeg"
+                        last_frame_url = f"data:{last_frame_mime};base64,{last_frame_base64}"
+                    
+                    # 处理参考帧
+                    reference_frame_urls = []
+                    if reference_frame_files:
+                        for ref_file in reference_frame_files[:4]:  # 最多4张
+                            ref_base64 = base64.b64encode(ref_file.getvalue()).decode('utf-8')
                             # 根据文件类型设置正确的MIME类型
-                            last_frame_mime = f"image/{last_frame_file.type.split('/')[-1]}" if last_frame_file.type else "image/jpeg"
-                            last_frame_url = f"data:{last_frame_mime};base64,{last_frame_base64}"
+                            ref_mime = f"image/{ref_file.type.split('/')[-1]}" if ref_file.type else "image/jpeg"
+                            ref_url = f"data:{ref_mime};base64,{ref_base64}"
+                            reference_frame_urls.append(ref_url)
+                    
+                    # 构建完整的提示词
+                    full_prompt = base_prompt_i2v
+                    full_prompt += f" --resolution {resolution_i2v}"
+                    full_prompt += f" --ratio {ratio_i2v}"
+                    full_prompt += f" --duration {duration_i2v}"
+                    full_prompt += f" --fps {fps_i2v}"
+                    full_prompt += f" --watermark {str(watermark_i2v).lower()}"
+                    if seed_i2v != -1:
+                        full_prompt += f" --seed {seed_i2v}"
+                    full_prompt += f" --camerafixed {str(camera_fixed_i2v).lower()}"
+                    
+                    st.info(f"完整提示词: {full_prompt}")
+                    
+                    # 调用图生视频函数
+                    video_url = i2v_seedance(
+                        ark_client, 
+                        model_i2v, 
+                        full_prompt,
+                        first_frame=first_frame_url,
+                        last_frame=last_frame_url,
+                        reference_frame=reference_frame_urls
+                    )
+                    
+                    if video_url:
+                        st.success("视频生成成功！")
+                        st.video(video_url)
+                        st.markdown(f"[下载视频]({video_url})")
+                    else:
+                        st.error("视频生成失败，请检查参数或稍后重试")
                         
-                        # 构建完整的提示词
-                        full_prompt = base_prompt_i2v
-                        full_prompt += f" --resolution {resolution_i2v}"
-                        full_prompt += f" --ratio {ratio_i2v}"
-                        full_prompt += f" --duration {duration_i2v}"
-                        full_prompt += f" --fps {fps_i2v}"
-                        full_prompt += f" --watermark {str(watermark_i2v).lower()}"
-                        if seed_i2v != -1:
-                            full_prompt += f" --seed {seed_i2v}"
-                        full_prompt += f" --camerafixed {str(camera_fixed_i2v).lower()}"
-                        
-                        st.info(f"完整提示词: {full_prompt}")
-                        
-                        # 调用图生视频函数
-                        video_url = i2v_seedance(
-                            ark_client, 
-                            model_i2v, 
-                            full_prompt,
-                            first_frame=first_frame_url,
-                            last_frame=last_frame_url
-                        )
-                        
-                        if video_url:
-                            st.success("视频生成成功！")
-                            st.video(video_url)
-                            st.markdown(f"[下载视频]({video_url})")
-                        else:
-                            st.error("视频生成失败，请检查参数或稍后重试")
-                            
-                    except Exception as e:
-                        st.error(f"生成视频时出错: {str(e)}")
+                except Exception as e:
+                    st.error(f"生成视频时出错: {str(e)}")
