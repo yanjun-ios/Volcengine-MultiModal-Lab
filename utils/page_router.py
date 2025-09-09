@@ -6,6 +6,7 @@ from page_modules.i2i_character import render_i2i_character
 from page_modules.image_effects import render_image_effects
 from page_modules.ark_t2i import render_ark_t2i
 from page_modules.ark_i2i import render_ark_i2i
+from page_modules.ark_seedream_40 import render_ark_seedream_40
 from page_modules.jimeng_t2i import render_jimeng_t2i_21
 from page_modules.jimeng_t2i_v30 import render_jimeng_t2i_v30
 from page_modules.jimeng_t2i_v31 import render_jimeng_t2i_v31
@@ -47,6 +48,9 @@ def route_page(selected_function, visual_service, ark_client):
         
     elif selected_function == "方舟-图像编辑3.0":
         render_ark_i2i(ark_client)
+        
+    elif selected_function == "方舟-SeedDream4.0":
+        render_ark_seedream_40(ark_client)
         
     elif selected_function == "既梦AI-文生图2.1":
         render_jimeng_t2i_21(visual_service)

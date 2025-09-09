@@ -111,7 +111,7 @@ def i2i_jimeng_v30(visual_service, prompt, seed=-1,width=1328, height=1328, scal
         form["image_urls"] = [image_url]
     elif image_base64:
         form["binary_data_base64"] = [image_base64]
-
+    print(form)
     resp = visual_service.cv_sync2async_submit_task(form)
     if resp['code'] != 10000:
         print(resp.get('message', 'Unknown error'))
