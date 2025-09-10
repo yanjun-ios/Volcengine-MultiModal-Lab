@@ -135,7 +135,7 @@ def render_ark_seedream_40(ark_client):
                     "Max Images", 
                     min_value=1, 
                     max_value=15, 
-                    value=15, 
+                    value=2, 
                     key="max_images_auto_seedream_40"
                 )
             else:
