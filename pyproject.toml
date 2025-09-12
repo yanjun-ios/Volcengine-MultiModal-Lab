@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "byteplus-python-sdk-v2>=3.0.8",
     "dotenv>=0.9.9",
     "sign>=0.0.2",
     "streamlit>=1.47.1",

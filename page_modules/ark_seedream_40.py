@@ -15,15 +15,21 @@ def render_ark_seedream_40(ark_client):
     with col1:
         st.subheader("输入参数")
         
-        # 模型选择
-        model_options = [
-            "doubao-seedream-4-0-250828"
-        ]
-        model_seedream = st.selectbox(
-            "选择模型",
-            options=model_options,
-            index=0,
-            key="model_seedream_40"
+        # 模型选择 - 根据 Byteplus 开关状态获取模型
+        byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+        
+        if byteplus_enabled:
+            # 从设置中获取 Byteplus SeedDream 4.0 模型
+            default_model = st.session_state.get("byteplus_seedream40_model", "seedream-4-0-250828")
+        else:
+            # 使用默认的 Volcengine 模型
+            default_model = "doubao-seedream-4-0-250828"
+        
+        model_seedream = st.text_input(
+            "输入模型名称",
+            value=default_model,
+            key="model_seedream_40",
+            help="当前使用的模型名称"
         )
         
         # 提示词输入
@@ -226,6 +232,7 @@ def render_ark_seedream_40(ark_client):
                         for line in response.iter_lines():
                             if line:
                                 line_str = line.decode('utf-8')
+                                print(line_str)
                                 if line_str.startswith('data: '):
                                     try:
                                         data_str = line_str[6:]  # 移除 'data: ' 前缀

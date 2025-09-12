@@ -13,11 +13,21 @@ def render_ark_i2i(ark_client):
     with col1:
         st.subheader("输入参数")
         
-        # 模型选择
+        # 模型选择 - 根据 Byteplus 开关状态获取模型
+        byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+        
+        if byteplus_enabled:
+            # 从设置中获取 Byteplus 图生图模型
+            default_model = st.session_state.get("byteplus_i2i_model", "seededit-3-0-i2i-250628")
+        else:
+            # 使用默认的 Volcengine 模型
+            default_model = "doubao-seededit-3-0-i2i-250628"
+        
         model_ark_i2i = st.text_input(
             "输入模型名称",
-            value="doubao-seededit-3-0-i2i-250628",
-            key="model_ark_i2i"
+            value=default_model,
+            key="model_ark_i2i",
+            help="当前使用的模型名称"
         )
         
         # 图片输入方式

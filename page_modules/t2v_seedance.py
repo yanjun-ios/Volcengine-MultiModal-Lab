@@ -14,10 +14,21 @@ def render_t2v_seedance(ark_client):
     with col1:
         st.subheader("输入参数")
         
-        # 模型选择
+        # 模型选择 - 根据 Byteplus 开关状态获取模型列表
+        byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+        
+        if byteplus_enabled:
+            # 从设置中获取 Byteplus 文生视频模型
+            t2v_models_str = st.session_state.get("byteplus_t2v_model", "seedance-1-0-pro-250528,seedance-1-0-lite-t2v-250428")
+            # 拆分逗号分隔的模型字符串为数组
+            model_options = [model.strip() for model in t2v_models_str.split(",") if model.strip()]
+        else:
+            # 使用默认的 Volcengine 模型
+            model_options = ["doubao-seedance-1-0-pro-250528", "doubao-seedance-1-0-lite-t2v-250428"]
+        
         model_t2v = st.selectbox(
             "选择模型",
-            ["doubao-seedance-1-0-pro-250528", "doubao-seedance-1-0-lite-t2v-250428"],
+            model_options,
             key="model_t2v"
         )
         

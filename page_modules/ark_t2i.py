@@ -12,11 +12,21 @@ def render_ark_t2i(ark_client):
     with col1:
         st.subheader("输入参数")
         
-        # 模型选择
+        # 模型选择 - 根据 Byteplus 开关状态获取模型
+        byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+        
+        if byteplus_enabled:
+            # 从设置中获取 Byteplus 文生图模型
+            default_model = st.session_state.get("byteplus_t2i_model", "seedream-3-0-t2i-250415")
+        else:
+            # 使用默认的 Volcengine 模型
+            default_model = "doubao-seedream-3-0-t2i-250415"
+        
         model_ark_t2i = st.text_input(
             "输入模型名称",
-            value="doubao-seedream-3-0-t2i-250415",
-            key="model_ark_t2i"
+            value=default_model,
+            key="model_ark_t2i",
+            help="当前使用的模型名称"
         )
         
         # 提示词输入

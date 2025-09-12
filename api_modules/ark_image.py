@@ -12,6 +12,15 @@ from volcenginesdkarkruntime import Ark
 
 # 方舟 文生图 3.0
 def ark_t2i(ark_client,model="doubao-seedream-3-0-t2i-250415",prompt="",size="1024x1024",seed=-1,guidance_scale=2.5,watermark=True):
+    import streamlit as st
+    
+    # 检查是否启用了 Byteplus Model Ark，如果启用则使用配置的模型
+    byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+    if byteplus_enabled:
+        # 使用 Byteplus 配置的文生图模型
+        configured_model = st.session_state.get("byteplus_t2i_model", "seedream-3-0-t2i-250415")
+        model = configured_model
+    
     imagesResponse = ark_client.images.generate(
         model=model,
         prompt=prompt,
@@ -27,6 +36,15 @@ def ark_t2i(ark_client,model="doubao-seedream-3-0-t2i-250415",prompt="",size="10
 
 # 方舟 图像编辑 3.0
 def ark_i2i(ark_client,model="doubao-seededit-3-0-i2i-250628",prompt="",image="",seed=-1,guidance_scale=5.5,watermark=True):
+    import streamlit as st
+    
+    # 检查是否启用了 Byteplus Model Ark，如果启用则使用配置的模型
+    byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+    if byteplus_enabled:
+        # 使用 Byteplus 配置的图生图模型
+        configured_model = st.session_state.get("byteplus_i2i_model", "seededit-3-0-i2i-250628")
+        model = configured_model
+    
     imagesResponse = ark_client.images.generate(
         model=model,
         prompt=prompt,
@@ -46,11 +64,27 @@ def ark_seedream_40(ark_client, model="doubao-seedream-4-0-250828", prompt="", i
     """
     # 从环境变量读取API密钥
     from dotenv import load_dotenv
+    import streamlit as st
     load_dotenv()
     
-    ark_api_key = os.getenv('VOLCENGINE_API_KEY')
-    if not ark_api_key:
-        raise ValueError("VOLCENGINE_API_KEY not found in environment variables")
+    # 检查是否启用了 Byteplus Model Ark
+    byteplus_enabled = st.session_state.get("byteplus_ark_enabled", False)
+    
+    if byteplus_enabled:
+        # 使用 Byteplus Model Ark 配置
+        ark_api_key = os.getenv('MODEL_ARK_API_KEY')
+        api_host = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations"
+        # 使用 Byteplus 配置的 SeedDream 4.0 模型
+        configured_model = st.session_state.get("byteplus_seedream40_model", "seedream-4-0-250828")
+        model = configured_model
+        if not ark_api_key:
+            raise ValueError("MODEL_ARK_API_KEY not found in environment variables. Please configure it in settings.")
+    else:
+        # 使用默认的 Volcengine Ark 配置
+        ark_api_key = os.getenv('VOLCENGINE_API_KEY')
+        api_host = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+        if not ark_api_key:
+            raise ValueError("VOLCENGINE_API_KEY not found in environment variables")
     
     # 构建请求数据
     data = {
@@ -86,9 +120,9 @@ def ark_seedream_40(ark_client, model="doubao-seedream-4-0-250828", prompt="", i
     }
     
     try:
-        # 发送POST请求
+        # 发送POST请求到对应的API主机
         response = requests.post(
-            "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+            api_host,
             headers=headers,
             json=data,
             timeout=600,
